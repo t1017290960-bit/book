@@ -55,6 +55,11 @@
           <i class="fa-solid fa-sliders"></i>
         </button>
 
+        <!-- 歷史紀錄按鈕 -->
+        <button id="openHistoryBtn" title="網址閱讀歷史紀錄" class="p-2 text-stone-600 dark:text-stone-300 hover:bg-stone-200 dark:hover:bg-stone-800 rounded-lg text-sm">
+          <i class="fa-solid fa-clock-rotate-left"></i>
+        </button>
+
         <!-- 載入新網址按鈕 -->
         <button id="openInputBtn" class="p-2 text-amber-600 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-stone-800 rounded-lg text-sm">
           <i class="fa-solid fa-globe"></i>
@@ -77,8 +82,11 @@
 
       <!-- 模式切換 -->
       <div class="flex border-b border-stone-200 dark:border-stone-700">
-        <button id="tabUrlBtn" class="flex-1 pb-2 text-sm font-semibold border-b-2 border-amber-500 text-amber-600 dark:text-amber-400">輸入網址 (支援下一節自動推算)</button>
-        <button id="tabPasteBtn" class="flex-1 pb-2 text-sm font-semibold border-b-2 border-transparent text-stone-500 hover:text-stone-700 dark:hover:text-stone-300">直接貼上內容</button>
+        <button id="tabUrlBtn" class="flex-1 pb-2 text-sm font-semibold border-b-2 border-amber-500 text-amber-600 dark:text-amber-400">輸入網址</button>
+        <button id="tabPasteBtn" class="flex-1 pb-2 text-sm font-semibold border-b-2 border-transparent text-stone-500 hover:text-stone-700 dark:hover:text-stone-300">直接貼上</button>
+        <button id="tabHistoryBtn" class="flex-1 pb-2 text-sm font-semibold border-b-2 border-transparent text-stone-500 hover:text-stone-700 dark:hover:text-stone-300 flex items-center justify-center gap-1">
+          <i class="fa-solid fa-clock-rotate-left text-xs"></i> 歷史紀錄
+        </button>
       </div>
 
       <!-- 網址模式區塊 -->
@@ -100,6 +108,15 @@
           <button id="fetchArticleBtn" class="flex-1 py-2.5 bg-amber-500 hover:bg-amber-600 text-white font-medium rounded-xl text-sm transition flex items-center justify-center gap-2">
             <i class="fa-solid fa-file-import"></i> 載入並開始閱讀
           </button>
+        </div>
+
+        <!-- 最近瀏覽快捷提示 -->
+        <div id="quickRecentHistory" class="pt-2 border-t border-stone-100 dark:border-stone-800 hidden">
+          <div class="flex items-center justify-between mb-1.5">
+            <span class="text-xs text-stone-400">最近閱讀記錄：</span>
+            <button id="quickViewHistoryBtn" class="text-[11px] text-amber-600 dark:text-amber-400 hover:underline">查看全部歷史</button>
+          </div>
+          <div id="quickHistoryChips" class="flex flex-wrap gap-1.5 max-h-20 overflow-y-auto"></div>
         </div>
 
         <!-- 示範測試連結 -->
@@ -129,6 +146,19 @@
         <button id="applyPastedTextBtn" class="w-full py-2.5 bg-amber-500 hover:bg-amber-600 text-white font-medium rounded-xl text-sm transition">
           立即純淨排版
         </button>
+      </div>
+
+      <!-- 網址歷史紀錄區塊 -->
+      <div id="tabHistoryContent" class="space-y-3 hidden">
+        <div class="flex items-center justify-between text-xs text-stone-500 dark:text-stone-400 pb-1 border-b border-stone-100 dark:border-stone-800">
+          <span>曾瀏覽過的章節與網址 (自動儲存)</span>
+          <button id="clearAllHistoryBtn" class="text-rose-500 hover:text-rose-700 font-medium flex items-center gap-1 transition">
+            <i class="fa-regular fa-trash-can"></i> 清空歷史
+          </button>
+        </div>
+        <div id="urlHistoryList" class="max-h-64 overflow-y-auto space-y-2 pr-1">
+          <div class="text-xs text-stone-400 italic py-6 text-center">尚無網址瀏覽歷史</div>
+        </div>
       </div>
     </div>
   </div>
@@ -325,6 +355,7 @@
       prevUrl: '',
       history: [],
       historyIndex: -1,
+      urlHistory: [], // 保留的網址歷史清單
       fontSize: 18,
       isTouchSafe: true,
       theme: 'sepia',
@@ -378,6 +409,16 @@
     const saveManualNextUrlBtn = document.getElementById('saveManualNextUrlBtn');
     const detectedLinksList = document.getElementById('detectedLinksList');
 
+    // 歷史紀錄相關元件
+    const openHistoryBtn = document.getElementById('openHistoryBtn');
+    const tabHistoryBtn = document.getElementById('tabHistoryBtn');
+    const tabHistoryContent = document.getElementById('tabHistoryContent');
+    const urlHistoryList = document.getElementById('urlHistoryList');
+    const clearAllHistoryBtn = document.getElementById('clearAllHistoryBtn');
+    const quickRecentHistory = document.getElementById('quickRecentHistory');
+    const quickHistoryChips = document.getElementById('quickHistoryChips');
+    const quickViewHistoryBtn = document.getElementById('quickViewHistoryBtn');
+
     // 本地持久化資料讀取
     async function loadSavedPreferences() {
       try {
@@ -385,6 +426,7 @@
           const savedTheme = await window.sayoStorage.getItem('reader_theme');
           const savedFontSize = await window.sayoStorage.getItem('reader_fontsize');
           const savedLastUrl = await window.sayoStorage.getItem('reader_last_url');
+          const savedHistory = await window.sayoStorage.getItem('reader_url_history');
 
           if (savedTheme) applyTheme(savedTheme);
           if (savedFontSize) {
@@ -394,10 +436,121 @@
           if (savedLastUrl) {
             urlInput.value = savedLastUrl;
           }
+          if (savedHistory) {
+            try {
+              state.urlHistory = JSON.parse(savedHistory);
+              renderUrlHistory();
+            } catch (e) {
+              state.urlHistory = [];
+            }
+          }
         }
       } catch (err) {
         console.warn('Storage read fallback', err);
       }
+    }
+
+    // 儲存網址至歷史紀錄
+    async function saveUrlToHistory(url, title) {
+      if (!url || !url.startsWith('http')) return;
+      const cleanTitle = (title || url).trim();
+      const now = new Date();
+      const timeStr = `${now.getMonth() + 1}/${now.getDate()} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+
+      // 過濾舊的同網址紀錄並置頂
+      state.urlHistory = state.urlHistory.filter(item => item.url !== url);
+      state.urlHistory.unshift({
+        url,
+        title: cleanTitle,
+        time: timeStr
+      });
+
+      if (state.urlHistory.length > 50) {
+        state.urlHistory = state.urlHistory.slice(0, 50);
+      }
+
+      renderUrlHistory();
+
+      if (window.sayoStorage) {
+        try {
+          await window.sayoStorage.setItem('reader_url_history', JSON.stringify(state.urlHistory));
+        } catch (e) {
+          console.warn('Failed to save history', e);
+        }
+      }
+    }
+
+    // 渲染歷史清單
+    function renderUrlHistory() {
+      // 1. 完整歷史清單
+      if (!state.urlHistory || state.urlHistory.length === 0) {
+        urlHistoryList.innerHTML = `<div class="text-xs text-stone-400 italic py-6 text-center">尚無網址瀏覽歷史</div>`;
+        quickRecentHistory.classList.add('hidden');
+        return;
+      }
+
+      urlHistoryList.innerHTML = state.urlHistory.map((item, idx) => `
+        <div class="flex items-center justify-between p-2.5 rounded-xl bg-stone-50 dark:bg-stone-800/80 border border-stone-200 dark:border-stone-700/60 hover:border-amber-400 transition gap-2">
+          <div class="flex-1 min-w-0 cursor-pointer select-history-item" data-url="${escapeHtml(item.url)}">
+            <h5 class="text-xs font-bold text-gray-800 dark:text-gray-100 truncate">${escapeHtml(item.title)}</h5>
+            <div class="flex items-center gap-2 text-[10px] text-stone-400 mt-0.5 truncate">
+              <span class="truncate font-mono">${escapeHtml(item.url)}</span>
+              <span class="shrink-0">• ${escapeHtml(item.time)}</span>
+            </div>
+          </div>
+          <div class="flex items-center gap-1 shrink-0">
+            <button class="select-history-item p-1.5 text-xs text-amber-600 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-stone-700 rounded-lg" title="開啟此章節" data-url="${escapeHtml(item.url)}">
+              <i class="fa-solid fa-arrow-right"></i>
+            </button>
+            <button class="delete-history-item p-1.5 text-xs text-stone-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-stone-700 rounded-lg" title="刪除此紀錄" data-index="${idx}">
+              <i class="fa-solid fa-xmark"></i>
+            </button>
+          </div>
+        </div>
+      `).join('');
+
+      // 綁定項目點擊與刪除
+      document.querySelectorAll('.select-history-item').forEach(el => {
+        el.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const targetUrl = el.getAttribute('data-url');
+          if (targetUrl) {
+            urlInput.value = targetUrl;
+            loadArticleFromUrl(targetUrl);
+          }
+        });
+      });
+
+      document.querySelectorAll('.delete-history-item').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+          e.stopPropagation();
+          const idx = parseInt(btn.getAttribute('data-index'), 10);
+          if (!isNaN(idx)) {
+            state.urlHistory.splice(idx, 1);
+            renderUrlHistory();
+            if (window.sayoStorage) {
+              await window.sayoStorage.setItem('reader_url_history', JSON.stringify(state.urlHistory));
+            }
+          }
+        });
+      });
+
+      // 2. 彈窗首頁快速標籤
+      quickRecentHistory.classList.remove('hidden');
+      const recentItems = state.urlHistory.slice(0, 4);
+      quickHistoryChips.innerHTML = recentItems.map(item => `
+        <button class="quick-chip-btn text-xs px-2.5 py-1 rounded-lg bg-stone-100 dark:bg-stone-800 hover:bg-amber-100 dark:hover:bg-stone-700 text-stone-700 dark:text-stone-300 max-w-[200px] truncate text-left" data-url="${escapeHtml(item.url)}" title="${escapeHtml(item.title)}">
+          <i class="fa-regular fa-clock text-[10px] text-amber-500 mr-1"></i>${escapeHtml(item.title)}
+        </button>
+      `).join('');
+
+      document.querySelectorAll('.quick-chip-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const url = btn.getAttribute('data-url');
+          urlInput.value = url;
+          loadArticleFromUrl(url);
+        });
+      });
     }
 
     // 智慧推算下一節網址 (例如: novel_1.html -> novel_2.html, page=1 -> page=2)
@@ -571,6 +724,9 @@
       mainArticleTitle.textContent = title;
       articleTitleHeader.textContent = title;
       originalSourceNotice.innerHTML = `<i class="fa-solid fa-link text-stone-400"></i> 來源：<span class="font-mono">${escapeHtml(sourceUrl)}</span>`;
+
+      // 自動記錄至永久網址歷史清單中
+      saveUrlToHistory(sourceUrl, title);
 
       // 過濾 Jina 標頭資訊
       let cleanText = md
@@ -900,18 +1056,48 @@
         });
       });
 
-      // 分頁切換 (網址模式 vs 直接貼上文字)
-      tabUrlBtn.addEventListener('click', () => {
-        tabUrlBtn.className = "flex-1 pb-2 text-sm font-semibold border-b-2 border-amber-500 text-amber-600 dark:text-amber-400";
-        tabPasteBtn.className = "flex-1 pb-2 text-sm font-semibold border-b-2 border-transparent text-stone-500 hover:text-stone-700";
-        tabUrlContent.classList.remove('hidden');
-        tabPasteContent.classList.add('hidden');
-      });
-      tabPasteBtn.addEventListener('click', () => {
-        tabPasteBtn.className = "flex-1 pb-2 text-sm font-semibold border-b-2 border-amber-500 text-amber-600 dark:text-amber-400";
-        tabUrlBtn.className = "flex-1 pb-2 text-sm font-semibold border-b-2 border-transparent text-stone-500 hover:text-stone-700";
-        tabPasteContent.classList.remove('hidden');
+      // 分頁切換函式
+      function switchModalTab(tab) {
+        tabUrlBtn.className = "flex-1 pb-2 text-sm font-semibold border-b-2 border-transparent text-stone-500 hover:text-stone-700 dark:hover:text-stone-300";
+        tabPasteBtn.className = "flex-1 pb-2 text-sm font-semibold border-b-2 border-transparent text-stone-500 hover:text-stone-700 dark:hover:text-stone-300";
+        tabHistoryBtn.className = "flex-1 pb-2 text-sm font-semibold border-b-2 border-transparent text-stone-500 hover:text-stone-700 dark:hover:text-stone-300 flex items-center justify-center gap-1";
+
         tabUrlContent.classList.add('hidden');
+        tabPasteContent.classList.add('hidden');
+        tabHistoryContent.classList.add('hidden');
+
+        if (tab === 'url') {
+          tabUrlBtn.className = "flex-1 pb-2 text-sm font-semibold border-b-2 border-amber-500 text-amber-600 dark:text-amber-400";
+          tabUrlContent.classList.remove('hidden');
+        } else if (tab === 'paste') {
+          tabPasteBtn.className = "flex-1 pb-2 text-sm font-semibold border-b-2 border-amber-500 text-amber-600 dark:text-amber-400";
+          tabPasteContent.classList.remove('hidden');
+        } else if (tab === 'history') {
+          tabHistoryBtn.className = "flex-1 pb-2 text-sm font-semibold border-b-2 border-amber-500 text-amber-600 dark:text-amber-400 flex items-center justify-center gap-1";
+          tabHistoryContent.classList.remove('hidden');
+        }
+      }
+
+      tabUrlBtn.addEventListener('click', () => switchModalTab('url'));
+      tabPasteBtn.addEventListener('click', () => switchModalTab('paste'));
+      tabHistoryBtn.addEventListener('click', () => switchModalTab('history'));
+      quickViewHistoryBtn.addEventListener('click', () => switchModalTab('history'));
+
+      // 頂部歷史紀錄按鈕
+      openHistoryBtn.addEventListener('click', () => {
+        inputModal.classList.remove('hidden');
+        switchModalTab('history');
+      });
+
+      // 清空所有歷史紀錄
+      clearAllHistoryBtn.addEventListener('click', async () => {
+        if (confirm('確定要清空所有網址歷史紀錄嗎？')) {
+          state.urlHistory = [];
+          renderUrlHistory();
+          if (window.sayoStorage) {
+            await window.sayoStorage.removeItem('reader_url_history');
+          }
+        }
       });
 
       // 套用手動貼上文字
