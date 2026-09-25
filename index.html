@@ -737,8 +737,10 @@
           state.historyIndex = state.history.length - 1;
         }
 
-        // 捲動至頂部
+        // 載入完成再次確保畫面置頂
         window.scrollTo({ top: 0, behavior: 'smooth' });
+        document.documentElement.scrollTop = 0;
+        document.body.scrollTop = 0;
 
       } catch (error) {
         console.error('Fetch error:', error);
@@ -906,17 +908,24 @@
       });
     }
 
-    // 跳轉到「下一節」核心功能
+    // 跳轉到「下一節」核心功能 (點擊後自動置頂)
     function goToNextSection() {
       if (!state.nextUrl) {
         sectionNavModal.classList.remove('hidden');
         return;
       }
+      // 點擊後立即平滑置頂
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      document.documentElement.scrollTop = 0;
+      document.body.scrollTop = 0;
       loadArticleFromUrl(state.nextUrl, true);
     }
 
-    // 跳轉到「上一節」
+    // 跳轉到「上一節」 (點擊後自動置頂)
     function goToPrevSection() {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      document.documentElement.scrollTop = 0;
+      document.body.scrollTop = 0;
       if (state.historyIndex > 0) {
         state.historyIndex--;
         const prevHistoryUrl = state.history[state.historyIndex];
