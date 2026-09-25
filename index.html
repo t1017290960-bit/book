@@ -1,0 +1,969 @@
+v<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>純淨閱讀器 - 防誤觸與章節連載</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    /* 閱讀模式色彩主題 */
+    body.theme-white { background-color: #ffffff; color: #1f2937; }
+    body.theme-sepia { background-color: #f7f3e8; color: #433422; }
+    body.theme-dark { background-color: #1e2430; color: #cbd5e1; }
+    body.theme-oled { background-color: #000000; color: #94a3b8; }
+
+    /* 防止手機長按或誤觸反白產生原生跳轉干擾 */
+    .touch-safe-active a {
+      pointer-events: none !important;
+      text-decoration: none !important;
+      color: inherit !important;
+      border-bottom: 1px dotted rgba(150, 150, 150, 0.4);
+    }
+    .safe-tap-scroll {
+      -webkit-overflow-scrolling: touch;
+    }
+  </style>
+</head>
+<body class="theme-sepia min-h-screen flex flex-col font-sans transition-colors duration-200">
+
+  <!-- 頂部閱讀進度條 -->
+  <div id="progressBar" class="fixed top-0 left-0 h-1 bg-amber-500 z-50 transition-all duration-100" style="width: 0%;"></div>
+
+  <!-- 頂部浮動控制列 -->
+  <header id="topBar" class="sticky top-0 z-40 backdrop-blur-md bg-white/80 dark:bg-gray-900/80 border-b border-stone-200 dark:border-stone-800 transition-all duration-200 px-3 py-2 sm:px-4">
+    <div class="max-w-3xl mx-auto flex items-center justify-between gap-2">
+      <div class="flex items-center gap-1.5 overflow-hidden">
+        <span class="text-amber-600 dark:text-amber-400 font-bold text-lg flex items-center gap-1">
+          <i class="fa-solid fa-book-open-reader"></i>
+        </span>
+        <h1 id="articleTitleHeader" class="text-sm font-semibold truncate max-w-[140px] sm:max-w-[260px] text-gray-800 dark:text-gray-200">
+          純淨閱讀器
+        </h1>
+      </div>
+
+      <!-- 快速控制組件 -->
+      <div class="flex items-center gap-1">
+        <!-- 防誤觸開關 -->
+        <button id="touchSafeBtn" title="防誤觸鎖定：點擊螢幕絕不跳出外部廣告連結" class="px-2 py-1 text-xs rounded-full flex items-center gap-1 font-medium bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700 transition">
+          <i class="fa-solid fa-shield-halved"></i>
+          <span class="hidden sm:inline">防誤觸</span>鎖定中
+        </button>
+
+        <!-- 設定按鈕 -->
+        <button id="openSettingsBtn" class="p-2 text-stone-600 dark:text-stone-300 hover:bg-stone-200 dark:hover:bg-stone-800 rounded-lg text-sm">
+          <i class="fa-solid fa-sliders"></i>
+        </button>
+
+        <!-- 載入新網址按鈕 -->
+        <button id="openInputBtn" class="p-2 text-amber-600 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-stone-800 rounded-lg text-sm">
+          <i class="fa-solid fa-globe"></i>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- 網址輸入與貼上抽屜 / 彈窗 -->
+  <div id="inputModal" class="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-3 hidden">
+    <div class="bg-white dark:bg-gray-900 border border-stone-200 dark:border-stone-800 rounded-2xl w-full max-w-lg p-5 shadow-2xl space-y-4">
+      <div class="flex items-center justify-between">
+        <h3 class="font-bold text-base text-gray-800 dark:text-gray-100 flex items-center gap-2">
+          <i class="fa-solid fa-link text-amber-500"></i> 開啟網頁文章 / 小說
+        </h3>
+        <button id="closeInputModalBtn" class="text-stone-400 hover:text-stone-600 dark:hover:text-stone-200 text-lg">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <!-- 模式切換 -->
+      <div class="flex border-b border-stone-200 dark:border-stone-700">
+        <button id="tabUrlBtn" class="flex-1 pb-2 text-sm font-semibold border-b-2 border-amber-500 text-amber-600 dark:text-amber-400">輸入網址 (支援下一節自動推算)</button>
+        <button id="tabPasteBtn" class="flex-1 pb-2 text-sm font-semibold border-b-2 border-transparent text-stone-500 hover:text-stone-700 dark:hover:text-stone-300">直接貼上內容</button>
+      </div>
+
+      <!-- 網址模式區塊 -->
+      <div id="tabUrlContent" class="space-y-3">
+        <div>
+          <label class="block text-xs font-medium text-stone-500 dark:text-stone-400 mb-1">文章或章節網址</label>
+          <div class="relative">
+            <input id="urlInput" type="url" placeholder="https://example.com/novel/chapter-1.html" class="w-full pl-3 pr-9 py-2 text-sm rounded-xl border border-stone-300 dark:border-stone-700 bg-stone-50 dark:bg-gray-800 text-gray-800 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-amber-500">
+            <button id="pasteClipboardBtn" title="貼上剪貼簿" class="absolute right-2 top-2 text-stone-400 hover:text-amber-500 text-sm">
+              <i class="fa-regular fa-clipboard"></i>
+            </button>
+          </div>
+          <p class="text-[11px] text-stone-400 mt-1 flex items-center gap-1">
+            <i class="fa-solid fa-wand-magic-sparkles text-amber-500"></i> 支援章節編號網址自動遞增與頁面連結提取
+          </p>
+        </div>
+
+        <div class="flex gap-2">
+          <button id="fetchArticleBtn" class="flex-1 py-2.5 bg-amber-500 hover:bg-amber-600 text-white font-medium rounded-xl text-sm transition flex items-center justify-center gap-2">
+            <i class="fa-solid fa-file-import"></i> 載入並開始閱讀
+          </button>
+        </div>
+
+        <!-- 示範測試連結 -->
+        <div class="pt-2 border-t border-stone-100 dark:border-stone-800">
+          <span class="text-xs text-stone-400 block mb-1.5">或點選測試連載文章：</span>
+          <div class="flex flex-wrap gap-1.5">
+            <button class="demo-link-btn text-xs px-2.5 py-1 rounded-lg bg-stone-100 dark:bg-stone-800 hover:bg-amber-100 dark:hover:bg-stone-700 text-stone-700 dark:text-stone-300 transition" data-url="https://zh.wikipedia.org/wiki/三國演義">
+              📚 經典名著 (範例 1)
+            </button>
+            <button class="demo-link-btn text-xs px-2.5 py-1 rounded-lg bg-stone-100 dark:bg-stone-800 hover:bg-amber-100 dark:hover:bg-stone-700 text-stone-700 dark:text-stone-300 transition" data-url="https://developer.mozilla.org/zh-TW/docs/Web/JavaScript/Guide/Introduction">
+              📖 技術章節 (範例 2)
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 純文字貼上模式區塊 -->
+      <div id="tabPasteContent" class="space-y-3 hidden">
+        <div>
+          <label class="block text-xs font-medium text-stone-500 dark:text-stone-400 mb-1">文章標題 (選填)</label>
+          <input id="pasteTitleInput" type="text" placeholder="請輸入標題" class="w-full px-3 py-2 text-sm rounded-xl border border-stone-300 dark:border-stone-700 bg-stone-50 dark:bg-gray-800 text-gray-800 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-amber-500">
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-stone-500 dark:text-stone-400 mb-1">文章內文 (自動過濾所有廣告與追蹤腳本)</label>
+          <textarea id="pasteBodyInput" rows="6" placeholder="請將網頁上複製的文字直接貼於此處..." class="w-full p-3 text-sm rounded-xl border border-stone-300 dark:border-stone-700 bg-stone-50 dark:bg-gray-800 text-gray-800 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-amber-500"></textarea>
+        </div>
+        <button id="applyPastedTextBtn" class="w-full py-2.5 bg-amber-500 hover:bg-amber-600 text-white font-medium rounded-xl text-sm transition">
+          立即純淨排版
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 排版與閱讀設定抽屜 -->
+  <div id="settingsDrawer" class="fixed inset-x-0 bottom-0 z-50 bg-white dark:bg-gray-900 border-t border-stone-200 dark:border-stone-800 p-4 shadow-2xl rounded-t-2xl transform translate-y-full transition-transform duration-200 max-w-xl mx-auto">
+    <div class="flex items-center justify-between pb-3 border-b border-stone-100 dark:border-stone-800">
+      <h4 class="font-bold text-sm text-stone-700 dark:text-stone-200">閱讀體驗自訂</h4>
+      <button id="closeSettingsBtn" class="text-stone-400 hover:text-stone-600 text-sm">
+        <i class="fa-solid fa-check"></i> 完成
+      </button>
+    </div>
+
+    <div class="space-y-4 pt-3">
+      <!-- 主題色彩 -->
+      <div>
+        <label class="text-xs text-stone-500 block mb-1.5">背景主題</label>
+        <div class="grid grid-cols-4 gap-2">
+          <button class="theme-btn py-1.5 text-xs rounded-lg border font-medium bg-white text-gray-900 border-stone-300" data-theme="white">純白</button>
+          <button class="theme-btn py-1.5 text-xs rounded-lg border font-medium bg-[#f7f3e8] text-[#433422] border-amber-300 ring-2 ring-amber-500" data-theme="sepia">護眼米黃</button>
+          <button class="theme-btn py-1.5 text-xs rounded-lg border font-medium bg-[#1e2430] text-[#cbd5e1] border-slate-700" data-theme="dark">深色夜間</button>
+          <button class="theme-btn py-1.5 text-xs rounded-lg border font-medium bg-black text-slate-400 border-zinc-800" data-theme="oled">極黑省電</button>
+        </div>
+      </div>
+
+      <!-- 字型大小與行高 -->
+      <div class="flex items-center justify-between gap-4">
+        <div class="flex-1">
+          <span class="text-xs text-stone-500 block mb-1">字級大小</span>
+          <div class="flex items-center gap-2">
+            <button id="decreaseFontBtn" class="w-8 h-8 rounded-lg bg-stone-100 dark:bg-stone-800 flex items-center justify-center text-sm font-bold active:scale-95">A-</button>
+            <span id="fontSizeDisplay" class="text-xs font-semibold w-8 text-center">18px</span>
+            <button id="increaseFontBtn" class="w-8 h-8 rounded-lg bg-stone-100 dark:bg-stone-800 flex items-center justify-center text-sm font-bold active:scale-95">A+</button>
+          </div>
+        </div>
+
+        <div class="flex-1">
+          <span class="text-xs text-stone-500 block mb-1">行距調整</span>
+          <div class="flex items-center gap-2">
+            <button id="lineHeightLooseBtn" class="flex-1 py-1.5 text-xs rounded-lg bg-stone-100 dark:bg-stone-800 hover:bg-stone-200">寬鬆</button>
+            <button id="lineHeightNormBtn" class="flex-1 py-1.5 text-xs rounded-lg bg-amber-100 dark:bg-stone-700 text-amber-800 dark:text-amber-200">標準</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 語音朗讀工具 -->
+      <div class="pt-2 border-t border-stone-100 dark:border-stone-800 flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <button id="toggleTtsBtn" class="px-3 py-1.5 bg-amber-500 text-white rounded-lg text-xs font-medium flex items-center gap-1.5">
+            <i class="fa-solid fa-volume-high"></i>
+            <span id="ttsBtnText">語音朗讀本節</span>
+          </button>
+          <span id="ttsStatus" class="text-[11px] text-stone-400">點擊朗讀文字</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 下一節自訂/選擇彈窗 -->
+  <div id="sectionNavModal" class="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-3 hidden">
+    <div class="bg-white dark:bg-gray-900 border border-stone-200 dark:border-stone-800 rounded-2xl w-full max-w-md p-5 shadow-2xl space-y-4">
+      <div class="flex items-center justify-between">
+        <h3 class="font-bold text-sm text-gray-800 dark:text-gray-100 flex items-center gap-1.5">
+          <i class="fa-solid fa-compass text-amber-500"></i> 章節跳轉設定
+        </h3>
+        <button id="closeSectionNavModalBtn" class="text-stone-400 hover:text-stone-600 text-lg">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <!-- 偵測到的章節連結列表 -->
+      <div>
+        <label class="text-xs text-stone-500 dark:text-stone-400 block mb-1">文章內偵測到的下一節/章節連結：</label>
+        <div id="detectedLinksList" class="max-h-40 overflow-y-auto space-y-1.5 p-1">
+          <div class="text-xs text-stone-400 italic py-2 text-center">尚未偵測到分頁連結</div>
+        </div>
+      </div>
+
+      <!-- 手動指定網址 -->
+      <div class="pt-2 border-t border-stone-100 dark:border-stone-800">
+        <label class="text-xs text-stone-500 dark:text-stone-400 block mb-1">手動指定「下一節」網址：</label>
+        <div class="flex gap-1.5">
+          <input id="manualNextUrlInput" type="url" placeholder="https://..." class="flex-1 px-3 py-1.5 text-xs rounded-lg border border-stone-300 dark:border-stone-700 bg-stone-50 dark:bg-gray-800 text-gray-800 dark:text-gray-100">
+          <button id="saveManualNextUrlBtn" class="px-3 py-1.5 bg-amber-500 text-white rounded-lg text-xs font-medium">確認</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 主要閱讀閱讀區 -->
+  <main class="flex-1 w-full max-w-3xl mx-auto px-4 py-6 sm:px-6 safe-tap-scroll">
+
+    <!-- 文章標題與資訊區 -->
+    <header class="mb-6 pb-4 border-b border-stone-200 dark:border-stone-800">
+      <div class="flex items-center gap-2 mb-2 text-xs text-stone-500 dark:text-stone-400">
+        <span id="metaSource" class="bg-amber-100 dark:bg-stone-800 text-amber-800 dark:text-amber-300 px-2 py-0.5 rounded">純淨模式</span>
+        <span id="metaWordCount"><i class="fa-solid fa-font"></i> 0 字</span>
+        <span id="metaReadTime"><i class="fa-regular fa-clock"></i> 約 1 分鐘</span>
+      </div>
+      <h2 id="mainArticleTitle" class="text-2xl sm:text-3xl font-extrabold tracking-tight leading-snug">
+        歡迎使用純淨閱讀器
+      </h2>
+      <p id="originalSourceNotice" class="text-xs text-stone-400 mt-2 truncate flex items-center gap-1">
+        <i class="fa-solid fa-shield text-emerald-500"></i> 所有懸浮彈窗、彈出廣告、點擊劫持已全面阻斷
+      </p>
+    </header>
+
+    <!-- 載入中狀態動畫 -->
+    <div id="loadingIndicator" class="py-16 text-center space-y-3 hidden">
+      <div class="inline-block animate-spin rounded-full h-9 w-9 border-3 border-amber-500 border-t-transparent"></div>
+      <p class="text-sm text-stone-500 font-medium">正在過濾廣告並萃取章節純文字...</p>
+    </div>
+
+    <!-- 文章內文容器 (已套用觸控安全模式) -->
+    <article id="articleContent" class="touch-safe-active prose prose-stone max-w-none transition-all duration-150 leading-relaxed space-y-4 text-justify" style="font-size: 18px; line-height: 1.8;">
+      <p>本閱讀器專為手機行動端設計，解決在網頁瀏覽小說、長文時，手機螢幕只要輕微誤觸或滑動，就跳出擾人廣告、惡意重定向彈窗的困擾。</p>
+
+      <div class="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 text-sm space-y-2">
+        <h4 class="font-bold flex items-center gap-1.5 text-amber-700 dark:text-amber-300">
+          <i class="fa-solid fa-bolt"></i> 核心功能特色：
+        </h4>
+        <ul class="list-disc pl-5 space-y-1 text-stone-700 dark:text-stone-300">
+          <li><strong>防誤觸觸屏安全鎖：</strong>開啟後，內文所有超連結皆無法點擊彈窗，手機滑動手指任按絕無跳轉廣告。</li>
+          <li><strong>連載「下一節 / 下一章」快捷連接：</strong>自動偵測或推算網址序號（如 <code>ch1.html</code> 自動導向 <code>ch2.html</code>），在文章底部一鍵跳轉下一節。</li>
+          <li><strong>乾淨排版：</strong>過濾所有追蹤碼、側邊欄廣告、懸浮圖片。</li>
+        </ul>
+      </div>
+
+      <p>請點擊右上角的 <strong><i class="fa-solid fa-globe text-amber-500"></i> 圖示</strong> 輸入您想閱讀的文章網址，或直接點選範例開始體驗！</p>
+    </article>
+
+    <!-- 下一節 / 章節導航底欄 (使用者核心需求) -->
+    <section class="mt-12 pt-6 border-t-2 border-dashed border-stone-300 dark:border-stone-800 space-y-4">
+      <div class="flex items-center justify-between text-xs text-stone-400">
+        <span>連載章節導航</span>
+        <button id="configNextUrlBtn" class="text-amber-600 dark:text-amber-400 hover:underline flex items-center gap-1">
+          <i class="fa-solid fa-gear"></i> 自訂下一節網址
+        </button>
+      </div>
+
+      <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
+        <!-- 上一節 -->
+        <button id="prevSectionBtn" class="flex items-center justify-center gap-2 py-3 px-3 rounded-xl border border-stone-300 dark:border-stone-700 bg-white/50 dark:bg-stone-800/50 hover:bg-stone-100 dark:hover:bg-stone-800 text-stone-700 dark:text-stone-200 font-medium text-sm transition disabled:opacity-40 disabled:pointer-events-none">
+          <i class="fa-solid fa-chevron-left text-xs"></i>
+          <span>上一節</span>
+        </button>
+
+        <!-- 章節選單 / 資訊 -->
+        <button id="chapterInfoBtn" class="hidden sm:flex items-center justify-center gap-1 py-3 px-3 rounded-xl border border-stone-200 dark:border-stone-800 text-stone-500 text-xs">
+          <i class="fa-solid fa-list-ol"></i>
+          <span id="chapterInfoText">章節目錄</span>
+        </button>
+
+        <!-- 下一節 (重點按鈕) -->
+        <button id="nextSectionBtn" class="col-span-1 sm:col-span-1 flex items-center justify-center gap-2 py-3 px-3 rounded-xl bg-amber-500 hover:bg-amber-600 active:scale-98 text-white font-bold text-sm shadow-md transition disabled:opacity-40 disabled:pointer-events-none">
+          <span>下一節</span>
+          <i class="fa-solid fa-chevron-right text-xs"></i>
+        </button>
+      </div>
+
+      <!-- 下一節網址提示列 -->
+      <div id="nextSectionPreview" class="text-center text-xs text-stone-400 truncate">
+        下一節預計連接：<span id="nextUrlLabel" class="text-amber-600 dark:text-amber-400 font-mono">尚未設定網址</span>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- 底部固定精簡導航條 (手機閱讀方便隨時按下一節) -->
+  <nav class="sticky bottom-0 z-40 bg-white/95 dark:bg-gray-900/95 backdrop-blur-md border-t border-stone-200 dark:border-stone-800 py-2 px-4 shadow-lg sm:hidden flex items-center justify-between">
+    <button id="mobilePrevBtn" class="text-xs px-3 py-1.5 rounded-lg border border-stone-300 dark:border-stone-700 text-stone-600 dark:text-stone-300 disabled:opacity-40">
+      <i class="fa-solid fa-arrow-left"></i> 上一節
+    </button>
+    <button id="mobileQuickSafeBtn" class="text-xs px-2 py-1 text-emerald-600 font-medium">
+      <i class="fa-solid fa-shield"></i> 防誤觸已開
+    </button>
+    <button id="mobileNextBtn" class="text-xs px-4 py-1.5 rounded-lg bg-amber-500 text-white font-bold shadow-sm disabled:opacity-40">
+      下一節 <i class="fa-solid fa-arrow-right"></i>
+    </button>
+  </nav>
+
+  <script>
+    // 狀態管理
+    const state = {
+      currentUrl: '',
+      currentTitle: '歡迎使用純淨閱讀器',
+      currentContent: '',
+      nextUrl: '',
+      prevUrl: '',
+      history: [],
+      historyIndex: -1,
+      fontSize: 18,
+      isTouchSafe: true,
+      theme: 'sepia',
+      detectedLinks: [],
+      ttsSpeaking: false,
+      speechUtterance: null
+    };
+
+    // DOM 元素
+    const articleContent = document.getElementById('articleContent');
+    const mainArticleTitle = document.getElementById('mainArticleTitle');
+    const articleTitleHeader = document.getElementById('articleTitleHeader');
+    const originalSourceNotice = document.getElementById('originalSourceNotice');
+    const metaWordCount = document.getElementById('metaWordCount');
+    const metaReadTime = document.getElementById('metaReadTime');
+    const progressBar = document.getElementById('progressBar');
+    const loadingIndicator = document.getElementById('loadingIndicator');
+
+    const nextSectionBtn = document.getElementById('nextSectionBtn');
+    const prevSectionBtn = document.getElementById('prevSectionBtn');
+    const mobileNextBtn = document.getElementById('mobileNextBtn');
+    const mobilePrevBtn = document.getElementById('mobilePrevBtn');
+    const nextUrlLabel = document.getElementById('nextUrlLabel');
+
+    const touchSafeBtn = document.getElementById('touchSafeBtn');
+    const mobileQuickSafeBtn = document.getElementById('mobileQuickSafeBtn');
+
+    // 彈窗與抽屜
+    const inputModal = document.getElementById('inputModal');
+    const openInputBtn = document.getElementById('openInputBtn');
+    const closeInputModalBtn = document.getElementById('closeInputModalBtn');
+    const settingsDrawer = document.getElementById('settingsDrawer');
+    const openSettingsBtn = document.getElementById('openSettingsBtn');
+    const closeSettingsBtn = document.getElementById('closeSettingsBtn');
+    const sectionNavModal = document.getElementById('sectionNavModal');
+    const configNextUrlBtn = document.getElementById('configNextUrlBtn');
+    const closeSectionNavModalBtn = document.getElementById('closeSectionNavModalBtn');
+
+    // 輸入控制
+    const urlInput = document.getElementById('urlInput');
+    const fetchArticleBtn = document.getElementById('fetchArticleBtn');
+    const pasteClipboardBtn = document.getElementById('pasteClipboardBtn');
+    const tabUrlBtn = document.getElementById('tabUrlBtn');
+    const tabPasteBtn = document.getElementById('tabPasteBtn');
+    const tabUrlContent = document.getElementById('tabUrlContent');
+    const tabPasteContent = document.getElementById('tabPasteContent');
+    const pasteTitleInput = document.getElementById('pasteTitleInput');
+    const pasteBodyInput = document.getElementById('pasteBodyInput');
+    const applyPastedTextBtn = document.getElementById('applyPastedTextBtn');
+    const manualNextUrlInput = document.getElementById('manualNextUrlInput');
+    const saveManualNextUrlBtn = document.getElementById('saveManualNextUrlBtn');
+    const detectedLinksList = document.getElementById('detectedLinksList');
+
+    // 本地持久化資料讀取
+    async function loadSavedPreferences() {
+      try {
+        if (window.sayoStorage) {
+          const savedTheme = await window.sayoStorage.getItem('reader_theme');
+          const savedFontSize = await window.sayoStorage.getItem('reader_fontsize');
+          const savedLastUrl = await window.sayoStorage.getItem('reader_last_url');
+
+          if (savedTheme) applyTheme(savedTheme);
+          if (savedFontSize) {
+            state.fontSize = parseInt(savedFontSize, 10);
+            updateFontSizeDisplay();
+          }
+          if (savedLastUrl) {
+            urlInput.value = savedLastUrl;
+          }
+        }
+      } catch (err) {
+        console.warn('Storage read fallback', err);
+      }
+    }
+
+    // 智慧推算下一節網址 (例如: novel_1.html -> novel_2.html, page=1 -> page=2)
+    function inferNextAndPrevUrl(url) {
+      if (!url) return { next: '', prev: '' };
+
+      try {
+        const parsed = new URL(url);
+
+        // 策略 1: 查詢參數含 page, p, ch, chapter
+        const pageParams = ['page', 'p', 'ch', 'chapter', 'id'];
+        for (const param of pageParams) {
+          if (parsed.searchParams.has(param)) {
+            const val = parseInt(parsed.searchParams.get(param), 10);
+            if (!isNaN(val)) {
+              const nextUrlObj = new URL(url);
+              const prevUrlObj = new URL(url);
+              nextUrlObj.searchParams.set(param, val + 1);
+              prevUrlObj.searchParams.set(param, Math.max(1, val - 1));
+              return {
+                next: nextUrlObj.toString(),
+                prev: val > 1 ? prevUrlObj.toString() : ''
+              };
+            }
+          }
+        }
+
+        // 策略 2: 路徑最後有連續數字 (例如 /chapter-12.html 或 /read/105)
+        const match = parsed.pathname.match(/(.*?)(\d+)(\.[a-zA-Z0-9]+|\/?)$/);
+        if (match) {
+          const prefix = match[1];
+          const numStr = match[2];
+          const suffix = match[3] || '';
+          const num = parseInt(numStr, 10);
+          const padLength = numStr.length;
+
+          const nextNum = String(num + 1).padStart(padLength, '0');
+          const prevNum = String(Math.max(1, num - 1)).padStart(padLength, '0');
+
+          const nextPath = prefix + nextNum + suffix;
+          const prevPath = prefix + prevNum + suffix;
+
+          const nextUrlObj = new URL(url);
+          nextUrlObj.pathname = nextPath;
+          const prevUrlObj = new URL(url);
+          prevUrlObj.pathname = prevPath;
+
+          return {
+            next: nextUrlObj.toString(),
+            prev: num > 1 ? prevUrlObj.toString() : ''
+          };
+        }
+      } catch (e) {
+        console.warn('URL parsing for next section inference:', e);
+      }
+
+      return { next: '', prev: '' };
+    }
+
+    // 從萃取出來的 Markdown / HTML 中偵測「下一章 / 下一頁 / 下一節」文字的連結
+    function extractSectionLinksFromContent(rawText, sourceUrl) {
+      const links = [];
+      const linkRegex = /\[([^\]]+)\]\((https?:\/\/[^\s\)]+)\)/g;
+      let match;
+
+      while ((match = linkRegex.exec(rawText)) !== null) {
+        const text = match[1].trim();
+        const href = match[2].trim();
+
+        if (/下[一1][節章頁回話]|後[一1][節章頁]|Next\s*(Chapter|Page)?/i.test(text)) {
+          links.push({ text, href, type: 'next' });
+        } else if (/上[一1][節章頁回話]|前[一1][節章頁]|Prev\s*(Chapter|Page)?/i.test(text)) {
+          links.push({ text, href, type: 'prev' });
+        } else if (/目錄|章節列表|回目錄/i.test(text)) {
+          links.push({ text, href, type: 'toc' });
+        }
+      }
+
+      return links;
+    }
+
+    // 載入指定網址文章 (使用 r.jina.ai 免費純淨閱讀 proxy)
+    async function loadArticleFromUrl(targetUrl, addToHistory = true) {
+      if (!targetUrl || !targetUrl.startsWith('http')) {
+        alert('請輸入有效的完整網址 (需包含 http:// 或 https://)');
+        return;
+      }
+
+      // UI 載入中
+      loadingIndicator.classList.remove('hidden');
+      articleContent.classList.add('opacity-30');
+      inputModal.classList.add('hidden');
+
+      state.currentUrl = targetUrl;
+      if (window.sayoStorage) {
+        window.sayoStorage.setItem('reader_last_url', targetUrl);
+      }
+
+      try {
+        // 使用 Jina Reader 純淨閱讀代理，能直接去除網頁所有廣告與彈窗程式碼並傳回純 Markdown
+        const proxyUrl = `https://r.jina.ai/${targetUrl}`;
+        const response = await fetch(proxyUrl);
+
+        if (!response.ok) {
+          throw new Error(`讀取失敗 (HTTP ${response.status})`);
+        }
+
+        const markdownText = await response.text();
+        renderCleanMarkdown(markdownText, targetUrl);
+
+        // 推算與分析章節連結
+        const inferred = inferNextAndPrevUrl(targetUrl);
+        const contentLinks = extractSectionLinksFromContent(markdownText, targetUrl);
+        state.detectedLinks = contentLinks;
+
+        // 若內文直接有抓到「下一節/下一章」超連結，以內文優先，否則使用網址推算
+        const detectedNext = contentLinks.find(l => l.type === 'next');
+        const detectedPrev = contentLinks.find(l => l.type === 'prev');
+
+        state.nextUrl = detectedNext ? detectedNext.href : inferred.next;
+        state.prevUrl = detectedPrev ? detectedPrev.href : inferred.prev;
+
+        updateSectionNavUI();
+
+        // 歷史記錄更新
+        if (addToHistory) {
+          state.history.push(targetUrl);
+          state.historyIndex = state.history.length - 1;
+        }
+
+        // 捲動至頂部
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+
+      } catch (error) {
+        console.error('Fetch error:', error);
+        articleContent.innerHTML = `
+          <div class="p-5 rounded-2xl bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900 text-rose-800 dark:text-rose-200 space-y-3">
+            <h3 class="font-bold flex items-center gap-2 text-base">
+              <i class="fa-solid fa-triangle-exclamation text-rose-500"></i> 無法直接連線抓取該網址
+            </h3>
+            <p class="text-xs">原因可能為該站設有 Cloudflare 驗證、防爬蟲或需要會員登入。</p>
+            <p class="text-xs font-semibold">解決方法：您可以複製該網頁上的文字，使用右上角「直接貼上內容」功能，同樣享有防誤觸與純淨閱讀排版！</p>
+            <button onclick="document.getElementById('openInputBtn').click(); document.getElementById('tabPasteBtn').click();" class="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-medium rounded-xl">
+              開啟貼上純文字視窗
+            </button>
+          </div>
+        `;
+      } finally {
+        loadingIndicator.classList.add('hidden');
+        articleContent.classList.remove('opacity-30');
+      }
+    }
+
+    // 將 Markdown 乾淨渲染為無廣告 HTML
+    function renderCleanMarkdown(md, sourceUrl) {
+      // 提取第一個大標題
+      let title = '未命名文章';
+      const titleMatch = md.match(/^#\s+(.+)$/m) || md.match(/Title:\s*(.+)$/m);
+      if (titleMatch) {
+        title = titleMatch[1].replace(/[\*\_]/g, '').trim();
+      } else {
+        try {
+          const urlObj = new URL(sourceUrl);
+          title = urlObj.pathname.split('/').filter(Boolean).pop() || urlObj.hostname;
+        } catch (e) {
+          title = '線上閱讀章節';
+        }
+      }
+
+      state.currentTitle = title;
+      mainArticleTitle.textContent = title;
+      articleTitleHeader.textContent = title;
+      originalSourceNotice.innerHTML = `<i class="fa-solid fa-link text-stone-400"></i> 來源：<span class="font-mono">${escapeHtml(sourceUrl)}</span>`;
+
+      // 過濾 Jina 標頭資訊
+      let cleanText = md
+        .replace(/^Title:.*$/m, '')
+        .replace(/^URL Source:.*$/m, '')
+        .replace(/^Markdown Content:.*$/m, '')
+        .trim();
+
+      // 計算字數與閱讀時間
+      const wordCount = cleanText.replace(/\s+/g, '').length;
+      metaWordCount.innerHTML = `<i class="fa-solid fa-font"></i> ${wordCount.toLocaleString()} 字`;
+      const readMin = Math.max(1, Math.ceil(wordCount / 400));
+      metaReadTime.innerHTML = `<i class="fa-regular fa-clock"></i> 約 ${readMin} 分鐘`;
+
+      // 轉換常用 Markdown 為排版元素
+      const lines = cleanText.split('\n');
+      const htmlParts = [];
+      let inParagraph = false;
+
+      for (let line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed) {
+          if (inParagraph) {
+            htmlParts.push('</p>');
+            inParagraph = false;
+          }
+          continue;
+        }
+
+        // 標題處理
+        if (trimmed.startsWith('### ')) {
+          if (inParagraph) { htmlParts.push('</p>'); inParagraph = false; }
+          htmlParts.push(`<h4 class="text-base font-bold mt-4 mb-2">${escapeHtml(trimmed.slice(4))}</h4>`);
+        } else if (trimmed.startsWith('## ')) {
+          if (inParagraph) { htmlParts.push('</p>'); inParagraph = false; }
+          htmlParts.push(`<h3 class="text-lg font-bold mt-5 mb-2">${escapeHtml(trimmed.slice(3))}</h3>`);
+        } else if (trimmed.startsWith('# ')) {
+          if (inParagraph) { htmlParts.push('</p>'); inParagraph = false; }
+          htmlParts.push(`<h2 class="text-xl font-extrabold mt-6 mb-3">${escapeHtml(trimmed.slice(2))}</h2>`);
+        } else if (trimmed.startsWith('> ')) {
+          if (inParagraph) { htmlParts.push('</p>'); inParagraph = false; }
+          htmlParts.push(`<blockquote class="border-l-4 border-amber-400 pl-3 py-1 my-3 text-stone-500 italic">${escapeHtml(trimmed.slice(2))}</blockquote>`);
+        } else {
+          // 一般段落文字
+          if (!inParagraph) {
+            htmlParts.push('<p class="mb-4 leading-relaxed indent-4">');
+            inParagraph = true;
+          } else {
+            htmlParts.push('<br>');
+          }
+
+          // 處理粗體與基本連結（但標記為安全模式）
+          let safeLine = escapeHtml(trimmed)
+            .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+            .replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2" data-href="$2" class="safe-link underline">$1</a>');
+
+          htmlParts.push(safeLine);
+        }
+      }
+
+      if (inParagraph) htmlParts.push('</p>');
+
+      state.currentContent = htmlParts.join('\n');
+      articleContent.innerHTML = state.currentContent;
+    }
+
+    // 更新章節導航 UI (按鈕狀態與文字)
+    function updateSectionNavUI() {
+      // 下一節按鈕狀態
+      if (state.nextUrl) {
+        nextSectionBtn.disabled = false;
+        mobileNextBtn.disabled = false;
+        nextUrlLabel.textContent = state.nextUrl;
+        nextSectionBtn.classList.remove('opacity-40');
+      } else {
+        nextSectionBtn.disabled = true;
+        mobileNextBtn.disabled = true;
+        nextUrlLabel.textContent = '未偵測到下一節 (可點右上齒輪手動指定)';
+        nextSectionBtn.classList.add('opacity-40');
+      }
+
+      // 上一節按鈕狀態
+      if (state.prevUrl || state.historyIndex > 0) {
+        prevSectionBtn.disabled = false;
+        mobilePrevBtn.disabled = false;
+      } else {
+        prevSectionBtn.disabled = true;
+        mobilePrevBtn.disabled = true;
+      }
+
+      // 填充章節選擇彈窗
+      renderDetectedLinks();
+    }
+
+    // 渲染彈窗中偵測到的章節連結列表
+    function renderDetectedLinks() {
+      if (!state.detectedLinks || state.detectedLinks.length === 0) {
+        detectedLinksList.innerHTML = `<div class="text-xs text-stone-400 italic py-3 text-center">本頁未分析到明確的「下一節」文字連結，目前使用自動網址推算。</div>`;
+        return;
+      }
+
+      detectedLinksList.innerHTML = state.detectedLinks.map(link => `
+        <div class="flex items-center justify-between p-2 rounded-lg bg-stone-50 dark:bg-stone-800 text-xs">
+          <div class="truncate max-w-[200px]">
+            <span class="font-medium text-amber-600 dark:text-amber-400">[${escapeHtml(link.text)}]</span>
+            <div class="text-[10px] text-stone-400 truncate">${escapeHtml(link.href)}</div>
+          </div>
+          <button class="select-next-url-btn px-2.5 py-1 bg-amber-500 hover:bg-amber-600 text-white rounded text-[11px]" data-url="${escapeHtml(link.href)}">
+            設為下一節
+          </button>
+        </div>
+      `).join('');
+
+      document.querySelectorAll('.select-next-url-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const picked = btn.getAttribute('data-url');
+          state.nextUrl = picked;
+          updateSectionNavUI();
+          sectionNavModal.classList.add('hidden');
+        });
+      });
+    }
+
+    // 跳轉到「下一節」核心功能
+    function goToNextSection() {
+      if (!state.nextUrl) {
+        sectionNavModal.classList.remove('hidden');
+        return;
+      }
+      loadArticleFromUrl(state.nextUrl, true);
+    }
+
+    // 跳轉到「上一節」
+    function goToPrevSection() {
+      if (state.historyIndex > 0) {
+        state.historyIndex--;
+        const prevHistoryUrl = state.history[state.historyIndex];
+        loadArticleFromUrl(prevHistoryUrl, false);
+      } else if (state.prevUrl) {
+        loadArticleFromUrl(state.prevUrl, true);
+      }
+    }
+
+    // HTML 特殊字元跳脫防 XSS
+    function escapeHtml(str) {
+      if (!str) return '';
+      return str.replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
+    // 切換主題
+    function applyTheme(themeName) {
+      state.theme = themeName;
+      document.body.className = `theme-${themeName} min-h-screen flex flex-col font-sans transition-colors duration-200`;
+
+      document.querySelectorAll('.theme-btn').forEach(btn => {
+        if (btn.getAttribute('data-theme') === themeName) {
+          btn.classList.add('ring-2', 'ring-amber-500');
+        } else {
+          btn.classList.remove('ring-2', 'ring-amber-500');
+        }
+      });
+
+      if (window.sayoStorage) {
+        window.sayoStorage.setItem('reader_theme', themeName);
+      }
+    }
+
+    // 更新字型大小
+    function updateFontSizeDisplay() {
+      articleContent.style.fontSize = `${state.fontSize}px`;
+      document.getElementById('fontSizeDisplay').textContent = `${state.fontSize}px`;
+      if (window.sayoStorage) {
+        window.sayoStorage.setItem('reader_fontsize', state.fontSize.toString());
+      }
+    }
+
+    // 觸控安全鎖切換 (防誤觸廣告/跳轉核心)
+    function toggleTouchSafe(enable) {
+      state.isTouchSafe = enable;
+      if (state.isTouchSafe) {
+        articleContent.classList.add('touch-safe-active');
+        touchSafeBtn.className = "px-2 py-1 text-xs rounded-full flex items-center gap-1 font-medium bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700 transition";
+        touchSafeBtn.innerHTML = '<i class="fa-solid fa-shield-halved"></i> <span class="hidden sm:inline">防誤觸</span>鎖定中';
+        mobileQuickSafeBtn.innerHTML = '<i class="fa-solid fa-shield"></i> 防誤觸已開';
+        mobileQuickSafeBtn.className = 'text-xs px-2 py-1 text-emerald-600 font-medium';
+      } else {
+        articleContent.classList.remove('touch-safe-active');
+        touchSafeBtn.className = "px-2 py-1 text-xs rounded-full flex items-center gap-1 font-medium bg-stone-100 text-stone-700 dark:bg-stone-800 dark:text-stone-300 border border-stone-300 dark:border-stone-700 transition";
+        touchSafeBtn.innerHTML = '<i class="fa-solid fa-lock-open"></i> 允許連結點擊';
+        mobileQuickSafeBtn.innerHTML = '<i class="fa-solid fa-unlock"></i> 連結可點';
+        mobileQuickSafeBtn.className = 'text-xs px-2 py-1 text-stone-500 font-medium';
+      }
+    }
+
+    // 語音朗讀 (TTS)
+    function toggleTextToSpeech() {
+      if (!('speechSynthesis' in window)) {
+        alert('您的瀏覽器不支援語音朗讀功能');
+        return;
+      }
+
+      if (state.ttsSpeaking) {
+        window.speechSynthesis.cancel();
+        state.ttsSpeaking = false;
+        document.getElementById('ttsBtnText').textContent = '語音朗讀本節';
+        document.getElementById('ttsStatus').textContent = '已暫停朗讀';
+      } else {
+        const textToRead = (state.currentTitle + '。' + articleContent.innerText).slice(0, 4000);
+        state.speechUtterance = new SpeechSynthesisUtterance(textToRead);
+        state.speechUtterance.lang = 'zh-TW';
+        state.speechUtterance.rate = 1.0;
+
+        state.speechUtterance.onend = () => {
+          state.ttsSpeaking = false;
+          document.getElementById('ttsBtnText').textContent = '語音朗讀本節';
+          document.getElementById('ttsStatus').textContent = '朗讀完畢';
+        };
+
+        window.speechSynthesis.speak(state.speechUtterance);
+        state.ttsSpeaking = true;
+        document.getElementById('ttsBtnText').textContent = '停止朗讀';
+        document.getElementById('ttsStatus').textContent = '正在朗讀中...';
+      }
+    }
+
+    // 滾動進度條監聽
+    window.addEventListener('scroll', () => {
+      const docHeight = document.documentElement.scrollHeight - document.documentElement.clientHeight;
+      if (docHeight > 0) {
+        const scrolled = (window.scrollY / docHeight) * 100;
+        progressBar.style.width = `${Math.min(100, Math.max(0, scrolled))}%`;
+      }
+    });
+
+    // 事件綁定
+    function initEventListeners() {
+      // 點擊「下一節」
+      nextSectionBtn.addEventListener('click', goToNextSection);
+      mobileNextBtn.addEventListener('click', goToNextSection);
+
+      // 點擊「上一節」
+      prevSectionBtn.addEventListener('click', goToPrevSection);
+      mobilePrevBtn.addEventListener('click', goToPrevSection);
+
+      // 自訂下一節網址
+      configNextUrlBtn.addEventListener('click', () => {
+        manualNextUrlInput.value = state.nextUrl || '';
+        sectionNavModal.classList.remove('hidden');
+      });
+      document.getElementById('chapterInfoBtn').addEventListener('click', () => {
+        sectionNavModal.classList.remove('hidden');
+      });
+      closeSectionNavModalBtn.addEventListener('click', () => sectionNavModal.classList.add('hidden'));
+
+      saveManualNextUrlBtn.addEventListener('click', () => {
+        const manual = manualNextUrlInput.value.trim();
+        if (manual) {
+          state.nextUrl = manual;
+          updateSectionNavUI();
+          sectionNavModal.classList.add('hidden');
+        }
+      });
+
+      // 防誤觸切換
+      touchSafeBtn.addEventListener('click', () => toggleTouchSafe(!state.isTouchSafe));
+      mobileQuickSafeBtn.addEventListener('click', () => toggleTouchSafe(!state.isTouchSafe));
+
+      // 彈窗與抽屜控制
+      openInputBtn.addEventListener('click', () => inputModal.classList.remove('hidden'));
+      closeInputModalBtn.addEventListener('click', () => inputModal.classList.add('hidden'));
+      openSettingsBtn.addEventListener('click', () => settingsDrawer.classList.remove('translate-y-full'));
+      closeSettingsBtn.addEventListener('click', () => settingsDrawer.classList.add('translate-y-full'));
+
+      // 點擊背景關閉設定抽屜
+      document.addEventListener('click', (e) => {
+        if (!settingsDrawer.contains(e.target) && !openSettingsBtn.contains(e.target) && !settingsDrawer.classList.contains('translate-y-full')) {
+          settingsDrawer.classList.add('translate-y-full');
+        }
+      });
+
+      // 網址載入動作
+      fetchArticleBtn.addEventListener('click', () => {
+        const url = urlInput.value.trim();
+        if (url) loadArticleFromUrl(url);
+      });
+      urlInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          const url = urlInput.value.trim();
+          if (url) loadArticleFromUrl(url);
+        }
+      });
+
+      // 剪貼簿貼上按鈕
+      pasteClipboardBtn.addEventListener('click', async () => {
+        try {
+          const text = await navigator.clipboard.readText();
+          if (text) urlInput.value = text.trim();
+        } catch (err) {
+          alert('請直接在輸入框中按住貼上網址');
+        }
+      });
+
+      // 測試連結點選
+      document.querySelectorAll('.demo-link-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const demoUrl = btn.getAttribute('data-url');
+          urlInput.value = demoUrl;
+          loadArticleFromUrl(demoUrl);
+        });
+      });
+
+      // 分頁切換 (網址模式 vs 直接貼上文字)
+      tabUrlBtn.addEventListener('click', () => {
+        tabUrlBtn.className = "flex-1 pb-2 text-sm font-semibold border-b-2 border-amber-500 text-amber-600 dark:text-amber-400";
+        tabPasteBtn.className = "flex-1 pb-2 text-sm font-semibold border-b-2 border-transparent text-stone-500 hover:text-stone-700";
+        tabUrlContent.classList.remove('hidden');
+        tabPasteContent.classList.add('hidden');
+      });
+      tabPasteBtn.addEventListener('click', () => {
+        tabPasteBtn.className = "flex-1 pb-2 text-sm font-semibold border-b-2 border-amber-500 text-amber-600 dark:text-amber-400";
+        tabUrlBtn.className = "flex-1 pb-2 text-sm font-semibold border-b-2 border-transparent text-stone-500 hover:text-stone-700";
+        tabPasteContent.classList.remove('hidden');
+        tabUrlContent.classList.add('hidden');
+      });
+
+      // 套用手動貼上文字
+      applyPastedTextBtn.addEventListener('click', () => {
+        const title = pasteTitleInput.value.trim() || '自訂閱讀章節';
+        const body = pasteBodyInput.value.trim();
+        if (!body) {
+          alert('請輸入或貼上文章內文');
+          return;
+        }
+
+        inputModal.classList.add('hidden');
+        state.currentTitle = title;
+        mainArticleTitle.textContent = title;
+        articleTitleHeader.textContent = title;
+        originalSourceNotice.innerHTML = `<i class="fa-solid fa-file-lines text-stone-400"></i> 來源：<span class="font-mono">本機貼上純文字</span>`;
+
+        const paragraphs = body.split('\n\n').filter(p => p.trim());
+        const html = paragraphs.map(p => `<p class="mb-4 leading-relaxed indent-4">${escapeHtml(p.trim())}</p>`).join('\n');
+
+        articleContent.innerHTML = html;
+        const count = body.replace(/\s+/g, '').length;
+        metaWordCount.innerHTML = `<i class="fa-solid fa-font"></i> ${count.toLocaleString()} 字`;
+        metaReadTime.innerHTML = `<i class="fa-regular fa-clock"></i> 約 ${Math.max(1, Math.ceil(count / 400))} 分鐘`;
+
+        // 預設提示下一節可自訂
+        state.nextUrl = '';
+        updateSectionNavUI();
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      });
+
+      // 字級大小調整
+      document.getElementById('increaseFontBtn').addEventListener('click', () => {
+        if (state.fontSize < 32) {
+          state.fontSize += 2;
+          updateFontSizeDisplay();
+        }
+      });
+      document.getElementById('decreaseFontBtn').addEventListener('click', () => {
+        if (state.fontSize > 14) {
+          state.fontSize -= 2;
+          updateFontSizeDisplay();
+        }
+      });
+
+      // 行距調整
+      document.getElementById('lineHeightLooseBtn').addEventListener('click', () => {
+        articleContent.style.lineHeight = '2.2';
+      });
+      document.getElementById('lineHeightNormBtn').addEventListener('click', () => {
+        articleContent.style.lineHeight = '1.8';
+      });
+
+      // 主題切換按鈕
+      document.querySelectorAll('.theme-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          applyTheme(btn.getAttribute('data-theme'));
+        });
+      });
+
+      // 語音朗讀
+      document.getElementById('toggleTtsBtn').addEventListener('click', toggleTextToSpeech);
+    }
+
+    // 初始化啟動
+    window.addEventListener('DOMContentLoaded', () => {
+      initEventListeners();
+      loadSavedPreferences();
+      updateFontSizeDisplay();
+      updateSectionNavUI();
+    });
+  </script>
+</body>
+</html
