@@ -43,7 +43,14 @@
       </div>
 
       <!-- 快速控制組件 -->
-      <div class="flex items-center gap-1">
+      <div class="flex items-center gap-1 sm:gap-1.5">
+        <!-- 頂部快速字級調教 (隨時點擊即時縮放) -->
+        <div class="flex items-center bg-stone-100 dark:bg-stone-800/90 rounded-lg p-0.5 border border-stone-200 dark:border-stone-700">
+          <button id="quickFontDecBtn" title="縮小字體 (A-)" class="w-6 h-6 flex items-center justify-center text-xs font-bold text-stone-600 dark:text-stone-300 hover:text-amber-600 active:scale-90 rounded">A-</button>
+          <span id="quickFontDisplay" class="text-[11px] font-mono font-semibold px-1 text-stone-600 dark:text-stone-300 select-none min-w-[20px] text-center">18</span>
+          <button id="quickFontIncBtn" title="放大字體 (A+)" class="w-6 h-6 flex items-center justify-center text-xs font-bold text-stone-600 dark:text-stone-300 hover:text-amber-600 active:scale-90 rounded">A+</button>
+        </div>
+
         <!-- 防誤觸開關 -->
         <button id="touchSafeBtn" title="防誤觸鎖定：點擊螢幕絕不跳出外部廣告連結" class="px-2 py-1 text-xs rounded-full flex items-center gap-1 font-medium bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700 transition">
           <i class="fa-solid fa-shield-halved"></i>
@@ -184,22 +191,54 @@
         </div>
       </div>
 
-      <!-- 字型大小與行高 -->
-      <div class="flex items-center justify-between gap-4">
-        <div class="flex-1">
-          <span class="text-xs text-stone-500 block mb-1">字級大小</span>
-          <div class="flex items-center gap-2">
-            <button id="decreaseFontBtn" class="w-8 h-8 rounded-lg bg-stone-100 dark:bg-stone-800 flex items-center justify-center text-sm font-bold active:scale-95">A-</button>
-            <span id="fontSizeDisplay" class="text-xs font-semibold w-8 text-center">18px</span>
-            <button id="increaseFontBtn" class="w-8 h-8 rounded-lg bg-stone-100 dark:bg-stone-800 flex items-center justify-center text-sm font-bold active:scale-95">A+</button>
+      <!-- 字體排版調教：滑桿、常用字級、字體風格、行距 -->
+      <div class="space-y-3 bg-stone-50 dark:bg-stone-800/50 p-3 rounded-xl border border-stone-200 dark:border-stone-700/60">
+        <div class="flex items-center justify-between">
+          <span class="text-xs font-bold text-stone-700 dark:text-stone-200 flex items-center gap-1.5">
+            <i class="fa-solid fa-font text-amber-500"></i> 字級微調 (<span id="fontSizeDisplay" class="text-amber-600 dark:text-amber-400 font-mono">18px</span>)
+          </span>
+          <div class="flex items-center gap-1">
+            <button id="decreaseFontBtn" class="px-2 py-0.5 rounded bg-white dark:bg-stone-700 text-xs font-bold shadow-xs active:scale-95 border border-stone-200 dark:border-stone-600">A- 縮小</button>
+            <button id="increaseFontBtn" class="px-2 py-0.5 rounded bg-white dark:bg-stone-700 text-xs font-bold shadow-xs active:scale-95 border border-stone-200 dark:border-stone-600">A+ 放大</button>
           </div>
         </div>
 
-        <div class="flex-1">
-          <span class="text-xs text-stone-500 block mb-1">行距調整</span>
-          <div class="flex items-center gap-2">
-            <button id="lineHeightLooseBtn" class="flex-1 py-1.5 text-xs rounded-lg bg-stone-100 dark:bg-stone-800 hover:bg-stone-200">寬鬆</button>
-            <button id="lineHeightNormBtn" class="flex-1 py-1.5 text-xs rounded-lg bg-amber-100 dark:bg-stone-700 text-amber-800 dark:text-amber-200">標準</button>
+        <!-- 字級滑桿 (12px ~ 36px 即時拖曳調教) -->
+        <div class="flex items-center gap-2">
+          <span class="text-[11px] text-stone-400 font-mono">12</span>
+          <input id="fontRangeInput" type="range" min="12" max="36" step="1" value="18" class="flex-1 accent-amber-500 cursor-pointer h-2 bg-stone-200 dark:bg-stone-700 rounded-lg">
+          <span class="text-[11px] text-stone-400 font-mono">36</span>
+        </div>
+
+        <!-- 常用字級快捷標籤 -->
+        <div class="flex items-center gap-1.5 pt-1">
+          <span class="text-[11px] text-stone-400 shrink-0">快捷：</span>
+          <div class="flex flex-wrap gap-1 flex-1">
+            <button class="font-preset-btn text-[11px] px-2 py-0.5 rounded-md border border-stone-200 dark:border-stone-700 hover:bg-amber-100 dark:hover:bg-stone-700" data-size="15">緊湊 15px</button>
+            <button class="font-preset-btn text-[11px] px-2 py-0.5 rounded-md border border-amber-400 bg-amber-50 dark:bg-stone-700 text-amber-700 dark:text-amber-300 font-bold" data-size="18">適中 18px</button>
+            <button class="font-preset-btn text-[11px] px-2 py-0.5 rounded-md border border-stone-200 dark:border-stone-700 hover:bg-amber-100 dark:hover:bg-stone-700" data-size="22">舒適 22px</button>
+            <button class="font-preset-btn text-[11px] px-2 py-0.5 rounded-md border border-stone-200 dark:border-stone-700 hover:bg-amber-100 dark:hover:bg-stone-700" data-size="26">大字 26px</button>
+            <button class="font-preset-btn text-[11px] px-2 py-0.5 rounded-md border border-stone-200 dark:border-stone-700 hover:bg-amber-100 dark:hover:bg-stone-700" data-size="30">超大 30px</button>
+          </div>
+        </div>
+
+        <!-- 字型風格選擇 -->
+        <div class="pt-2 border-t border-stone-200 dark:border-stone-700 flex items-center justify-between">
+          <span class="text-xs text-stone-500">排版字型</span>
+          <div class="flex gap-1">
+            <button class="font-family-btn text-xs px-2 py-1 rounded-lg border border-amber-400 bg-amber-50 dark:bg-stone-700 text-amber-800 dark:text-amber-200 font-medium" data-family="sans">預設黑體</button>
+            <button class="font-family-btn text-xs px-2 py-1 rounded-lg border border-stone-200 dark:border-stone-700 font-serif" data-family="serif">典雅宋體</button>
+            <button class="font-family-btn text-xs px-2 py-1 rounded-lg border border-stone-200 dark:border-stone-700" style="font-family: KaiTi, STKaiti, 楷體, serif;" data-family="kaiti">書卷楷體</button>
+          </div>
+        </div>
+
+        <!-- 行距選擇 -->
+        <div class="pt-2 border-t border-stone-200 dark:border-stone-700 flex items-center justify-between">
+          <span class="text-xs text-stone-500">段落行距</span>
+          <div class="flex gap-1.5">
+            <button id="lineHeightCompactBtn" class="py-1 px-2 text-xs rounded-lg border border-stone-200 dark:border-stone-700 hover:bg-stone-100 dark:hover:bg-stone-700">緊密 (1.5)</button>
+            <button id="lineHeightNormBtn" class="py-1 px-2 text-xs rounded-lg border border-amber-400 bg-amber-50 dark:bg-stone-700 text-amber-800 dark:text-amber-200 font-medium">標準 (1.8)</button>
+            <button id="lineHeightLooseBtn" class="py-1 px-2 text-xs rounded-lg border border-stone-200 dark:border-stone-700 hover:bg-stone-100 dark:hover:bg-stone-700">寬鬆 (2.2)</button>
           </div>
         </div>
       </div>
@@ -357,6 +396,8 @@
       historyIndex: -1,
       urlHistory: [], // 保留的網址歷史清單
       fontSize: 18,
+      fontFamily: 'sans',
+      lineHeight: '1.8',
       isTouchSafe: true,
       theme: 'sepia',
       detectedLinks: [],
@@ -419,12 +460,21 @@
     const quickHistoryChips = document.getElementById('quickHistoryChips');
     const quickViewHistoryBtn = document.getElementById('quickViewHistoryBtn');
 
+    // 字級與字體調教元件
+    const quickFontDecBtn = document.getElementById('quickFontDecBtn');
+    const quickFontIncBtn = document.getElementById('quickFontIncBtn');
+    const quickFontDisplay = document.getElementById('quickFontDisplay');
+    const fontRangeInput = document.getElementById('fontRangeInput');
+    const lineHeightCompactBtn = document.getElementById('lineHeightCompactBtn');
+
     // 本地持久化資料讀取
     async function loadSavedPreferences() {
       try {
         if (window.sayoStorage) {
           const savedTheme = await window.sayoStorage.getItem('reader_theme');
           const savedFontSize = await window.sayoStorage.getItem('reader_fontsize');
+          const savedFontFamily = await window.sayoStorage.getItem('reader_fontfamily');
+          const savedLineHeight = await window.sayoStorage.getItem('reader_lineheight');
           const savedLastUrl = await window.sayoStorage.getItem('reader_last_url');
           const savedHistory = await window.sayoStorage.getItem('reader_url_history');
 
@@ -432,6 +482,12 @@
           if (savedFontSize) {
             state.fontSize = parseInt(savedFontSize, 10);
             updateFontSizeDisplay();
+          }
+          if (savedFontFamily) {
+            setFontFamily(savedFontFamily);
+          }
+          if (savedLineHeight) {
+            setLineHeight(savedLineHeight);
           }
           if (savedLastUrl) {
             urlInput.value = savedLastUrl;
@@ -898,12 +954,81 @@
       }
     }
 
-    // 更新字型大小
+    // 設定並更新字型大小
+    function setFontSize(newSize) {
+      state.fontSize = Math.min(36, Math.max(12, parseInt(newSize, 10)));
+      updateFontSizeDisplay();
+    }
+
+    // 更新字型大小全域顯示
     function updateFontSizeDisplay() {
       articleContent.style.fontSize = `${state.fontSize}px`;
-      document.getElementById('fontSizeDisplay').textContent = `${state.fontSize}px`;
+      const sizeStr = `${state.fontSize}px`;
+      const dispEl = document.getElementById('fontSizeDisplay');
+      if (dispEl) dispEl.textContent = sizeStr;
+      if (quickFontDisplay) quickFontDisplay.textContent = state.fontSize;
+      if (fontRangeInput) fontRangeInput.value = state.fontSize;
+
+      // 更新快捷按鈕樣式
+      document.querySelectorAll('.font-preset-btn').forEach(btn => {
+        const size = parseInt(btn.getAttribute('data-size'), 10);
+        if (size === state.fontSize) {
+          btn.className = "font-preset-btn text-[11px] px-2 py-0.5 rounded-md border border-amber-400 bg-amber-50 dark:bg-stone-700 text-amber-700 dark:text-amber-300 font-bold";
+        } else {
+          btn.className = "font-preset-btn text-[11px] px-2 py-0.5 rounded-md border border-stone-200 dark:border-stone-700 hover:bg-amber-100 dark:hover:bg-stone-700";
+        }
+      });
+
       if (window.sayoStorage) {
         window.sayoStorage.setItem('reader_fontsize', state.fontSize.toString());
+      }
+    }
+
+    // 設定字體風格 (黑體 / 宋體 / 楷體)
+    function setFontFamily(family) {
+      state.fontFamily = family;
+      if (family === 'serif') {
+        articleContent.style.fontFamily = 'Georgia, Cambria, "Songti SC", "SimSun", "Noto Serif CJK TC", serif';
+      } else if (family === 'kaiti') {
+        articleContent.style.fontFamily = 'KaiTi, "Kaiti SC", STKaiti, "楷體", "BiauKai", serif';
+      } else {
+        articleContent.style.fontFamily = 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Microsoft JhengHei", sans-serif';
+      }
+
+      document.querySelectorAll('.font-family-btn').forEach(btn => {
+        if (btn.getAttribute('data-family') === family) {
+          btn.className = "font-family-btn text-xs px-2 py-1 rounded-lg border border-amber-400 bg-amber-50 dark:bg-stone-700 text-amber-800 dark:text-amber-200 font-medium";
+        } else {
+          btn.className = "font-family-btn text-xs px-2 py-1 rounded-lg border border-stone-200 dark:border-stone-700";
+        }
+      });
+
+      if (window.sayoStorage) {
+        window.sayoStorage.setItem('reader_fontfamily', family);
+      }
+    }
+
+    // 設定行距
+    function setLineHeight(lh) {
+      state.lineHeight = lh;
+      articleContent.style.lineHeight = lh;
+
+      const map = {
+        '1.5': lineHeightCompactBtn,
+        '1.8': document.getElementById('lineHeightNormBtn'),
+        '2.2': document.getElementById('lineHeightLooseBtn')
+      };
+
+      [lineHeightCompactBtn, document.getElementById('lineHeightNormBtn'), document.getElementById('lineHeightLooseBtn')].forEach(btn => {
+        if (btn) btn.className = "py-1 px-2 text-xs rounded-lg border border-stone-200 dark:border-stone-700 hover:bg-stone-100 dark:hover:bg-stone-700";
+      });
+
+      if (map[lh]) {
+        map[lh].className = "py-1 px-2 text-xs rounded-lg border border-amber-400 bg-amber-50 dark:bg-stone-700 text-amber-800 dark:text-amber-200 font-medium";
+      }
+
+      if (window.sayoStorage) {
+        window.sayoStorage.setItem('reader_lineheight', lh);
       }
     }
 
@@ -1129,27 +1254,37 @@
         window.scrollTo({ top: 0, behavior: 'smooth' });
       });
 
-      // 字級大小調整
-      document.getElementById('increaseFontBtn').addEventListener('click', () => {
-        if (state.fontSize < 32) {
-          state.fontSize += 2;
-          updateFontSizeDisplay();
-        }
-      });
-      document.getElementById('decreaseFontBtn').addEventListener('click', () => {
-        if (state.fontSize > 14) {
-          state.fontSize -= 2;
-          updateFontSizeDisplay();
-        }
+      // 字級大小調整事件
+      // 1. 頂部快速按鈕
+      quickFontDecBtn.addEventListener('click', () => setFontSize(state.fontSize - 1));
+      quickFontIncBtn.addEventListener('click', () => setFontSize(state.fontSize + 1));
+
+      // 2. 抽屜按鈕
+      document.getElementById('increaseFontBtn').addEventListener('click', () => setFontSize(state.fontSize + 2));
+      document.getElementById('decreaseFontBtn').addEventListener('click', () => setFontSize(state.fontSize - 2));
+
+      // 3. 滑桿即時調教 (12px ~ 36px)
+      fontRangeInput.addEventListener('input', (e) => setFontSize(e.target.value));
+
+      // 4. 常用字級快捷按鈕
+      document.querySelectorAll('.font-preset-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const sz = btn.getAttribute('data-size');
+          if (sz) setFontSize(sz);
+        });
       });
 
-      // 行距調整
-      document.getElementById('lineHeightLooseBtn').addEventListener('click', () => {
-        articleContent.style.lineHeight = '2.2';
+      // 5. 字體風格切換
+      document.querySelectorAll('.font-family-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          setFontFamily(btn.getAttribute('data-family'));
+        });
       });
-      document.getElementById('lineHeightNormBtn').addEventListener('click', () => {
-        articleContent.style.lineHeight = '1.8';
-      });
+
+      // 6. 行距調整
+      lineHeightCompactBtn.addEventListener('click', () => setLineHeight('1.5'));
+      document.getElementById('lineHeightNormBtn').addEventListener('click', () => setLineHeight('1.8'));
+      document.getElementById('lineHeightLooseBtn').addEventListener('click', () => setLineHeight('2.2'));
 
       // 主題切換按鈕
       document.querySelectorAll('.theme-btn').forEach(btn => {
