@@ -111,6 +111,17 @@
           </p>
         </div>
 
+        <!-- 上次閱讀快速接續提示 -->
+        <div id="lastUrlResumeBar" class="hidden p-2 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-between gap-2 text-xs">
+          <div class="flex items-center gap-1.5 truncate text-amber-800 dark:text-amber-300">
+            <i class="fa-solid fa-clock-rotate-left"></i>
+            <span class="truncate">上次閱讀：<span id="lastUrlResumeLabel" class="font-mono text-[11px]"></span></span>
+          </div>
+          <button id="resumeLastUrlBtn" class="shrink-0 px-2 py-1 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-[11px] font-bold">
+            一鍵載入
+          </button>
+        </div>
+
         <div class="flex gap-2">
           <button id="fetchArticleBtn" class="flex-1 py-2.5 bg-amber-500 hover:bg-amber-600 text-white font-medium rounded-xl text-sm transition flex items-center justify-center gap-2">
             <i class="fa-solid fa-file-import"></i> 載入並開始閱讀
@@ -253,6 +264,18 @@
           <span id="ttsStatus" class="text-[11px] text-stone-400">點擊朗讀文字</span>
         </div>
       </div>
+
+      <!-- 偏好設定：自動接續上次進度 -->
+      <div class="pt-2 border-t border-stone-200 dark:border-stone-700 flex items-center justify-between">
+        <div>
+          <span class="text-xs font-medium text-stone-700 dark:text-stone-300 block">自動保留並接續上次網址</span>
+          <span class="text-[11px] text-stone-400">下次開啟網頁時直接載入最後閱讀的章節</span>
+        </div>
+        <label class="relative inline-flex items-center cursor-pointer">
+          <input type="checkbox" id="autoRestoreToggle" class="sr-only peer" checked>
+          <div class="w-9 h-5 bg-stone-300 peer-focus:outline-none rounded-full peer dark:bg-stone-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-stone-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-amber-500"></div>
+        </label>
+      </div>
     </div>
   </div>
 
@@ -384,6 +407,12 @@
     <i class="fa-solid fa-arrow-up text-sm"></i>
   </button>
 
+  <!-- 浮動提示 Toast -->
+  <div id="readerToast" class="fixed bottom-16 sm:bottom-8 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-full bg-stone-900/90 text-white text-xs font-medium shadow-xl backdrop-blur-xs transition-all duration-300 opacity-0 pointer-events-none flex items-center gap-2">
+    <i class="fa-solid fa-circle-check text-amber-400"></i>
+    <span id="readerToastText">已就緒</span>
+  </div>
+
   <script>
     // 狀態管理
     const state = {
@@ -467,6 +496,27 @@
     const fontRangeInput = document.getElementById('fontRangeInput');
     const lineHeightCompactBtn = document.getElementById('lineHeightCompactBtn');
 
+    // 網址保留與接續元件
+    const lastUrlResumeBar = document.getElementById('lastUrlResumeBar');
+    const lastUrlResumeLabel = document.getElementById('lastUrlResumeLabel');
+    const resumeLastUrlBtn = document.getElementById('resumeLastUrlBtn');
+    const autoRestoreToggle = document.getElementById('autoRestoreToggle');
+
+    // Toast 提示訊息
+    function showToast(msg) {
+      const toast = document.getElementById('readerToast');
+      const textEl = document.getElementById('readerToastText');
+      if (!toast || !textEl) return;
+      textEl.textContent = msg;
+      toast.classList.remove('opacity-0', 'pointer-events-none');
+      toast.classList.add('opacity-100');
+      clearTimeout(window.__toastTimer);
+      window.__toastTimer = setTimeout(() => {
+        toast.classList.add('opacity-0', 'pointer-events-none');
+        toast.classList.remove('opacity-100');
+      }, 3000);
+    }
+
     // 本地持久化資料讀取
     async function loadSavedPreferences() {
       try {
@@ -477,6 +527,7 @@
           const savedLineHeight = await window.sayoStorage.getItem('reader_lineheight');
           const savedLastUrl = await window.sayoStorage.getItem('reader_last_url');
           const savedHistory = await window.sayoStorage.getItem('reader_url_history');
+          const savedAutoRestore = await window.sayoStorage.getItem('reader_auto_restore');
 
           if (savedTheme) applyTheme(savedTheme);
           if (savedFontSize) {
@@ -489,9 +540,23 @@
           if (savedLineHeight) {
             setLineHeight(savedLineHeight);
           }
+
+          if (savedAutoRestore !== null) {
+            autoRestoreToggle.checked = savedAutoRestore !== 'false';
+          }
+
           if (savedLastUrl) {
             urlInput.value = savedLastUrl;
+            lastUrlResumeLabel.textContent = savedLastUrl;
+            lastUrlResumeBar.classList.remove('hidden');
+
+            // 若開啟自動接續功能，下次開啟網頁時直接自動加載上次網址！
+            if (autoRestoreToggle.checked && savedLastUrl.startsWith('http')) {
+              showToast('已自動為您回復上次閱讀的網址進度');
+              loadArticleFromUrl(savedLastUrl, true);
+            }
           }
+
           if (savedHistory) {
             try {
               state.urlHistory = JSON.parse(savedHistory);
@@ -1169,6 +1234,26 @@
           const url = urlInput.value.trim();
           if (url) loadArticleFromUrl(url);
         }
+      });
+      urlInput.addEventListener('input', () => {
+        const val = urlInput.value.trim();
+        if (val && val.startsWith('http') && window.sayoStorage) {
+          window.sayoStorage.setItem('reader_last_url', val);
+        }
+      });
+
+      // 點選接續上次閱讀網址按鈕
+      resumeLastUrlBtn.addEventListener('click', () => {
+        const url = urlInput.value.trim();
+        if (url) loadArticleFromUrl(url);
+      });
+
+      // 自動接續開關設定
+      autoRestoreToggle.addEventListener('change', () => {
+        if (window.sayoStorage) {
+          window.sayoStorage.setItem('reader_auto_restore', autoRestoreToggle.checked.toString());
+        }
+        showToast(autoRestoreToggle.checked ? '已開啟：下次打開將自動回復網址' : '已關閉自動接續');
       });
 
       // 剪貼簿貼上按鈕
