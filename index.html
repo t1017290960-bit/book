@@ -1132,8 +1132,9 @@
       }
 
       if (state.ttsSpeaking) {
-        window.speechSynthesis.cancel();
+        // 手動停止時先清除朗讀狀態，避免觸發自動跳章
         state.ttsSpeaking = false;
+        window.speechSynthesis.cancel();
         document.getElementById('ttsBtnText').textContent = '語音朗讀本節';
         document.getElementById('ttsStatus').textContent = '已暫停朗讀';
       } else {
@@ -1143,9 +1144,15 @@
         state.speechUtterance.rate = 1.0;
 
         state.speechUtterance.onend = () => {
+          const shouldAdvance = state.ttsSpeaking;
           state.ttsSpeaking = false;
           document.getElementById('ttsBtnText').textContent = '語音朗讀本節';
-          document.getElementById('ttsStatus').textContent = '朗讀完畢';
+          if (shouldAdvance && state.nextUrl) {
+            document.getElementById('ttsStatus').textContent = '朗讀完畢，正在跳轉下一節…';
+            goToNextSection();
+          } else {
+            document.getElementById('ttsStatus').textContent = shouldAdvance ? '朗讀完畢（尚未設定下一節）' : '已停止朗讀';
+          }
         };
 
         window.speechSynthesis.speak(state.speechUtterance);
