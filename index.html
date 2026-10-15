@@ -191,34 +191,36 @@
     </div>
 
     <div class="space-y-4 pt-3">
-      <!-- PocketBase 網頁輸入紀錄 -->
-      <div class="space-y-2 p-3 rounded-xl bg-amber-500/5 border border-amber-500/20">
-        <label class="text-xs font-bold text-amber-800 dark:text-amber-300 block flex items-center gap-1.5">
-          <i class="fa-solid fa-database"></i> PocketBase 網頁輸入紀錄
-        </label>
-        <input id="pbUrlInput" type="url" placeholder="https://your-pocketbase-domain.com" class="w-full px-3 py-2 text-xs rounded-lg border border-stone-300 dark:border-stone-700 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-100">
-        <div class="space-y-2 border-t border-amber-500/20 pt-2">
-          <div class="flex items-center justify-between gap-2">
-            <span class="text-xs font-semibold text-stone-700 dark:text-stone-200">PocketBase 帳戶同步</span>
-            <button id="pbAccountToggle" type="button" class="hidden text-[11px] text-amber-700 dark:text-amber-300 hover:underline">切換帳戶</button>
-          </div>
-          <div id="pbAuthFields" class="space-y-2">
-            <input id="pbEmailInput" type="email" autocomplete="username" placeholder="帳戶電子郵件" class="w-full px-3 py-2 text-xs rounded-lg border border-stone-300 dark:border-stone-700 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-100">
-            <input id="pbPasswordInput" type="password" autocomplete="current-password" placeholder="密碼（不會儲存）" class="w-full px-3 py-2 text-xs rounded-lg border border-stone-300 dark:border-stone-700 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-100">
-            <div class="grid grid-cols-2 gap-2">
-              <button id="pbLoginBtn" class="py-2 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold">登入並同步</button>
-              <button id="pbRegisterBtn" class="py-2 rounded-lg border border-amber-400 text-amber-700 dark:text-amber-300 text-xs font-semibold">建立帳戶</button>
+      <!-- PocketBase 設定可自由展開／收合 -->
+      <details id="pbSettingsDetails" class="group rounded-xl bg-amber-500/5 border border-amber-500/20">
+        <summary class="list-none cursor-pointer select-none flex items-center justify-between gap-2 p-3 text-xs font-bold text-amber-800 dark:text-amber-300">
+          <span class="flex items-center gap-1.5"><i class="fa-solid fa-database"></i> PocketBase 網頁輸入紀錄與帳戶同步</span>
+          <i class="fa-solid fa-chevron-down text-[10px] transition-transform group-open:rotate-180"></i>
+        </summary>
+        <div class="space-y-2 px-3 pb-3">
+          <input id="pbUrlInput" type="url" placeholder="https://your-pocketbase-domain.com" class="w-full px-3 py-2 text-xs rounded-lg border border-stone-300 dark:border-stone-700 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-100">
+          <div class="space-y-2 border-t border-amber-500/20 pt-2">
+            <div class="flex items-center justify-between gap-2">
+              <span class="text-xs font-semibold text-stone-700 dark:text-stone-200">PocketBase 帳戶同步</span>
+              <button id="pbAccountToggle" type="button" class="hidden text-[11px] text-amber-700 dark:text-amber-300 hover:underline">切換帳戶</button>
             </div>
+            <div id="pbAuthFields" class="space-y-2">
+              <input id="pbEmailInput" type="email" autocomplete="username" placeholder="帳戶電子郵件" class="w-full px-3 py-2 text-xs rounded-lg border border-stone-300 dark:border-stone-700 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-100">
+              <input id="pbPasswordInput" type="password" autocomplete="current-password" placeholder="密碼（不會儲存）" class="w-full px-3 py-2 text-xs rounded-lg border border-stone-300 dark:border-stone-700 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-100">
+              <div class="grid grid-cols-2 gap-2">
+                <button id="pbLoginBtn" class="py-2 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold">登入並同步</button>
+                <button id="pbRegisterBtn" class="py-2 rounded-lg border border-amber-400 text-amber-700 dark:text-amber-300 text-xs font-semibold">建立帳戶</button>
+              </div>
+            </div>
+            <button id="pbLogoutBtn" class="hidden w-full py-1.5 rounded-lg border border-stone-300 dark:border-stone-700 text-stone-600 dark:text-stone-300 text-xs">登出</button>
+            <p id="pbAccountStatus" role="status" class="text-[11px] text-stone-500 dark:text-stone-400">尚未登入。登入後可同步閱讀網址歷史。</p>
           </div>
-          <button id="pbLogoutBtn" class="hidden w-full py-1.5 rounded-lg border border-stone-300 dark:border-stone-700 text-stone-600 dark:text-stone-300 text-xs">登出</button>
-          <p id="pbAccountStatus" role="status" class="text-[11px] text-stone-500 dark:text-stone-400">尚未登入。登入後可同步閱讀網址歷史。</p>
+          <label class="flex items-center justify-between gap-2 text-xs text-stone-600 dark:text-stone-300">
+            <span>載入網址或貼上文章時自動記錄</span>
+            <input id="pbSyncToggle" type="checkbox" checked class="accent-amber-500">
+          </label>
         </div>
-        <label class="flex items-center justify-between gap-2 text-xs text-stone-600 dark:text-stone-300">
-          <span>載入網址或貼上文章時自動記錄</span>
-          <input id="pbSyncToggle" type="checkbox" checked class="accent-amber-500">
-        </label>
-        <p class="text-[10px] leading-relaxed text-stone-500 dark:text-stone-400">伺服器網址請填 PocketBase 根網址（例如 http://127.0.0.1:8090，不要貼管理後台頁面網址或加 /api）。使用現有 web_inputs 同步歷史：在此集合新增 owner 欄位（Relation，指向 users，單筆且非必填）；List、View、Create、Update 規則設為 owner = @request.auth.id。登入後的閱讀歷史會以 input_type=history 存入此集合，網址輸入紀錄維持原欄位。請勿使用管理員 Token。</p>
-      </div>
+      </details>
 
       <!-- 主題色彩 -->
       <div>
