@@ -191,6 +191,30 @@
     </div>
 
     <div class="space-y-4 pt-3">
+      <!-- PocketBase 網頁輸入紀錄 -->
+      <div class="space-y-2 p-3 rounded-xl bg-amber-500/5 border border-amber-500/20">
+        <label class="text-xs font-bold text-amber-800 dark:text-amber-300 block flex items-center gap-1.5">
+          <i class="fa-solid fa-database"></i> PocketBase 網頁輸入紀錄
+        </label>
+        <input id="pbUrlInput" type="url" placeholder="https://your-pocketbase-domain.com" class="w-full px-3 py-2 text-xs rounded-lg border border-stone-300 dark:border-stone-700 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-100">
+        <div class="space-y-2 border-t border-amber-500/20 pt-2">
+          <span class="text-xs font-semibold text-stone-700 dark:text-stone-200">PocketBase 帳戶同步</span>
+          <input id="pbEmailInput" type="email" autocomplete="username" placeholder="帳戶電子郵件" class="w-full px-3 py-2 text-xs rounded-lg border border-stone-300 dark:border-stone-700 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-100">
+          <input id="pbPasswordInput" type="password" autocomplete="current-password" placeholder="密碼（不會儲存）" class="w-full px-3 py-2 text-xs rounded-lg border border-stone-300 dark:border-stone-700 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-100">
+          <div class="grid grid-cols-2 gap-2">
+            <button id="pbLoginBtn" class="py-2 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold">登入並同步</button>
+            <button id="pbRegisterBtn" class="py-2 rounded-lg border border-amber-400 text-amber-700 dark:text-amber-300 text-xs font-semibold">建立帳戶</button>
+          </div>
+          <button id="pbLogoutBtn" class="hidden w-full py-1.5 rounded-lg border border-stone-300 dark:border-stone-700 text-stone-600 dark:text-stone-300 text-xs">登出</button>
+          <p id="pbAccountStatus" role="status" class="text-[11px] text-stone-500 dark:text-stone-400">尚未登入。登入後可同步閱讀網址歷史。</p>
+        </div>
+        <label class="flex items-center justify-between gap-2 text-xs text-stone-600 dark:text-stone-300">
+          <span>載入網址或貼上文章時自動記錄</span>
+          <input id="pbSyncToggle" type="checkbox" checked class="accent-amber-500">
+        </label>
+        <p class="text-[10px] leading-relaxed text-stone-500 dark:text-stone-400">請在 PocketBase 啟用 users 帳戶註冊，並建立 reader_history 集合（owner 關聯 users、url/title/time 為文字、updatedAt 為日期），設定清單/新增/修改規則只允許 owner = @request.auth.id。web_inputs 欄位為 url、title、input_type、content_snippet；要將輸入紀錄關聯帳戶，另加 owner（關聯 users）欄位並設定新增規則。不要在前端填入管理員 Token。</p>
+      </div>
+
       <!-- 主題色彩 -->
       <div>
         <label class="text-xs text-stone-500 block mb-1.5">背景主題</label>
@@ -431,7 +455,9 @@
       theme: 'sepia',
       detectedLinks: [],
       ttsSpeaking: false,
-      speechUtterance: null
+      speechUtterance: null,
+      pbToken: '',
+      pbUser: null
     };
 
     // DOM 元素
@@ -441,6 +467,14 @@
     const originalSourceNotice = document.getElementById('originalSourceNotice');
     const metaWordCount = document.getElementById('metaWordCount');
     const metaReadTime = document.getElementById('metaReadTime');
+    const pbUrlInput = document.getElementById('pbUrlInput');
+    const pbSyncToggle = document.getElementById('pbSyncToggle');
+    const pbEmailInput = document.getElementById('pbEmailInput');
+    const pbPasswordInput = document.getElementById('pbPasswordInput');
+    const pbAccountStatus = document.getElementById('pbAccountStatus');
+    const pbLoginBtn = document.getElementById('pbLoginBtn');
+    const pbRegisterBtn = document.getElementById('pbRegisterBtn');
+    const pbLogoutBtn = document.getElementById('pbLogoutBtn');
     const progressBar = document.getElementById('progressBar');
     const loadingIndicator = document.getElementById('loadingIndicator');
 
@@ -517,6 +551,225 @@
       }, 3000);
     }
 
+    function setPocketBaseAccountStatus(message, tone = 'neutral') {
+      pbAccountStatus.textContent = message;
+      pbAccountStatus.className = `text-[11px] ${tone === 'error' ? 'text-rose-600 dark:text-rose-400' : tone === 'success' ? 'text-emerald-700 dark:text-emerald-400' : 'text-stone-500 dark:text-stone-400'}`;
+      pbLogoutBtn.classList.toggle('hidden', !state.pbUser);
+    }
+
+    async function pocketBaseJson(response) {
+      try { return await response.json(); } catch (error) { return {}; }
+    }
+
+    async function savePocketBaseSession() {
+      if (!window.sayoStorage) return;
+      await window.sayoStorage.setItem('reader_pb_token', state.pbToken);
+      await window.sayoStorage.setItem('reader_pb_email', state.pbUser?.email || '');
+    }
+
+    async function saveCurrentHistory() {
+      if (!window.sayoStorage) return;
+      const key = state.pbUser ? `reader_url_history_user_${state.pbUser.id}` : 'reader_url_history';
+      await window.sayoStorage.setItem(key, JSON.stringify(state.urlHistory));
+      if (state.pbUser) await window.sayoStorage.setItem('reader_url_history_owner', state.pbUser.id);
+    }
+
+    async function activateHistoryForUser(userId, adoptCurrent = false) {
+      if (!window.sayoStorage) {
+        if (!adoptCurrent) state.urlHistory = [];
+        renderUrlHistory();
+        return;
+      }
+      const key = `reader_url_history_user_${userId}`;
+      const saved = await window.sayoStorage.getItem(key);
+      if (saved !== null) {
+        try { state.urlHistory = JSON.parse(saved) || []; }
+        catch (error) { console.warn('帳戶閱讀歷史格式無法解析:', error); state.urlHistory = []; }
+      } else if (!adoptCurrent) {
+        state.urlHistory = [];
+      }
+      await window.sayoStorage.setItem('reader_url_history_owner', userId);
+      if (saved === null) await window.sayoStorage.setItem(key, JSON.stringify(state.urlHistory));
+      renderUrlHistory();
+    }
+
+    // 登入後同步此帳戶的閱讀網址歷史
+    async function syncPocketBaseHistory() {
+      if (!state.pbToken || !state.pbUser) return;
+      const baseUrl = pbUrlInput.value.trim().replace(/\/+$/, '');
+      setPocketBaseAccountStatus(`已登入 ${state.pbUser.email || ''}，正在同步閱讀歷史…`);
+      try {
+        const filter = encodeURIComponent(`owner = "${state.pbUser.id}"`);
+        const listResponse = await fetch(`${baseUrl}/api/collections/reader_history/records?filter=${filter}&perPage=500&sort=-created`, {
+          headers: { Authorization: state.pbToken }
+        });
+        const listData = await pocketBaseJson(listResponse);
+        if (!listResponse.ok) throw new Error(listData.message || `讀取閱讀歷史失敗 (${listResponse.status})`);
+
+        const remoteByUrl = new Map((listData.items || []).filter(item => item.url).map(item => [item.url, item]));
+        const localByUrl = new Map((state.urlHistory || []).filter(item => item.url).map(item => [item.url, item]));
+        const localWrites = [];
+        for (const [url, local] of localByUrl) {
+          const remote = remoteByUrl.get(url);
+          const localTime = Date.parse(local.updatedAt || '') || (remote ? 0 : Date.now());
+          const remoteTime = Date.parse(remote?.updatedAt || remote?.updated || remote?.created || '') || 0;
+          if (!remote || localTime > remoteTime) {
+            const updatedAt = local.updatedAt || new Date().toISOString();
+            const record = { owner: state.pbUser.id, url, title: local.title || url, time: local.time || '', updatedAt };
+            const path = remote
+              ? `/api/collections/reader_history/records/${encodeURIComponent(remote.id)}`
+              : '/api/collections/reader_history/records';
+            const writeResponse = await fetch(`${baseUrl}${path}`, {
+              method: remote ? 'PATCH' : 'POST',
+              headers: { 'Content-Type': 'application/json', Authorization: state.pbToken },
+              body: JSON.stringify(record)
+            });
+            const writeData = await pocketBaseJson(writeResponse);
+            if (!writeResponse.ok) throw new Error(writeData.message || `儲存閱讀歷史失敗 (${writeResponse.status})`);
+            localWrites.push([url, { ...local, updatedAt }]);
+          }
+        }
+
+        const merged = new Map();
+        for (const [url, remote] of remoteByUrl) {
+          const stamp = remote.updatedAt || remote.updated || remote.created || '';
+          merged.set(url, { url, title: remote.title || url, time: remote.time || '', updatedAt: stamp });
+        }
+        for (const [url, local] of localByUrl) {
+          const remote = remoteByUrl.get(url);
+          const localTime = Date.parse(local.updatedAt || '') || (remote ? 0 : Date.now());
+          const remoteTime = Date.parse(remote?.updatedAt || remote?.updated || remote?.created || '') || 0;
+          if (!remote || localTime >= remoteTime) merged.set(url, { ...local, updatedAt: local.updatedAt || new Date().toISOString() });
+        }
+        state.urlHistory = [...merged.values()].sort((a, b) => (Date.parse(b.updatedAt || '') || 0) - (Date.parse(a.updatedAt || '') || 0)).slice(0, 50);
+        renderUrlHistory();
+        await saveCurrentHistory();
+        setPocketBaseAccountStatus(`已登入 ${state.pbUser.email || ''}；閱讀歷史已同步。`, 'success');
+      } catch (error) {
+        console.error('PocketBase 閱讀歷史同步失敗:', error);
+        setPocketBaseAccountStatus(`帳戶已登入，但同步失敗：${error.message}。請檢查 reader_history 集合與 API 規則。`, 'error');
+      }
+    }
+
+    async function authenticatePocketBase(mode) {
+      const baseUrl = pbUrlInput.value.trim().replace(/\/+$/, '');
+      const email = pbEmailInput.value.trim();
+      const password = pbPasswordInput.value;
+      if (!baseUrl || !email || !password) {
+        setPocketBaseAccountStatus('請先填寫 PocketBase 網址、電子郵件及密碼。', 'error');
+        return;
+      }
+      pbLoginBtn.disabled = pbRegisterBtn.disabled = true;
+      setPocketBaseAccountStatus(mode === 'register' ? '正在建立帳戶…' : '正在登入…');
+      try {
+        if (mode === 'register') {
+          const registerResponse = await fetch(`${baseUrl}/api/collections/users/records`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, password, passwordConfirm: password })
+          });
+          const registerData = await pocketBaseJson(registerResponse);
+          if (!registerResponse.ok) throw new Error(registerData.message || '建立帳戶失敗，請確認 users 集合允許註冊及電子郵件是否已使用。');
+        }
+        const authResponse = await fetch(`${baseUrl}/api/collections/users/auth-with-password`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ identity: email, password })
+        });
+        const authData = await pocketBaseJson(authResponse);
+        if (!authResponse.ok || !authData.token || !authData.record) throw new Error(authData.message || '登入失敗，請檢查帳戶資料及 PocketBase 網址。');
+        const previousUserId = state.pbUser?.id || '';
+        const newUserId = authData.record.id;
+        if (previousUserId && previousUserId !== newUserId) await saveCurrentHistory();
+        const historyOwner = window.sayoStorage ? await window.sayoStorage.getItem('reader_url_history_owner') : null;
+        const adoptCurrentHistory = previousUserId === newUserId || (!previousUserId && !historyOwner);
+        state.pbToken = authData.token;
+        state.pbUser = authData.record;
+        await activateHistoryForUser(newUserId, adoptCurrentHistory);
+        pbEmailInput.value = authData.record.email || email;
+        pbPasswordInput.value = '';
+        await savePocketBaseSession();
+        setPocketBaseAccountStatus(`已登入 ${state.pbUser.email || ''}，正在同步…`, 'success');
+        await syncPocketBaseHistory();
+        showToast('PocketBase 帳戶已登入');
+      } catch (error) {
+        console.error('PocketBase 帳戶驗證失敗:', error);
+        setPocketBaseAccountStatus(error.message || '帳戶驗證失敗，請稍後重試。', 'error');
+      } finally {
+        pbLoginBtn.disabled = pbRegisterBtn.disabled = false;
+      }
+    }
+
+    async function restorePocketBaseSession() {
+      if (!state.pbToken || !pbUrlInput.value.trim()) return;
+      try {
+        const baseUrl = pbUrlInput.value.trim().replace(/\/+$/, '');
+        const response = await fetch(`${baseUrl}/api/collections/users/auth-refresh`, {
+          method: 'POST',
+          headers: { Authorization: state.pbToken }
+        });
+        const data = await pocketBaseJson(response);
+        if (!response.ok || !data.token || !data.record) throw new Error('登入狀態已失效，請重新登入。');
+        state.pbToken = data.token;
+        state.pbUser = data.record;
+        await activateHistoryForUser(data.record.id, false);
+        pbEmailInput.value = data.record.email || '';
+        await savePocketBaseSession();
+        await syncPocketBaseHistory();
+      } catch (error) {
+        console.warn('PocketBase session restore:', error);
+        state.pbToken = '';
+        state.pbUser = null;
+        if (window.sayoStorage) await window.sayoStorage.removeItem('reader_pb_token');
+        setPocketBaseAccountStatus('尚未登入；請重新登入以同步閱讀歷史。', 'error');
+      }
+    }
+
+    async function logoutPocketBase() {
+      state.pbToken = '';
+      state.pbUser = null;
+      state.urlHistory = [];
+      renderUrlHistory();
+      if (window.sayoStorage) {
+        await window.sayoStorage.removeItem('reader_pb_token');
+        await window.sayoStorage.removeItem('reader_pb_email');
+      }
+      setPocketBaseAccountStatus('已登出；本機閱讀歷史仍保留。');
+      showToast('已登出 PocketBase 帳戶');
+    }
+
+    // 將輸入紀錄寫入 PocketBase 的 web_inputs 集合
+    async function recordToPocketBase(payload) {
+      const baseUrl = pbUrlInput.value.trim().replace(/\/+$/, '');
+      if (!pbSyncToggle.checked || !baseUrl) return;
+
+      try {
+        const record = { ...payload };
+        const headers = { 'Content-Type': 'application/json' };
+        if (state.pbToken && state.pbUser) {
+          headers.Authorization = state.pbToken;
+          record.owner = state.pbUser.id;
+        }
+        const response = await fetch(`${baseUrl}/api/collections/web_inputs/records`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(record)
+        });
+        if (!response.ok) {
+          const data = await pocketBaseJson(response);
+          console.warn('PocketBase 寫入失敗:', data);
+          showToast(`PocketBase 寫入失敗 (${response.status})`);
+          return false;
+        }
+        showToast('已記錄至 PocketBase');
+        return true;
+      } catch (error) {
+        console.error('PocketBase 連線失敗，請檢查伺服器網址或 CORS 設定：', error);
+        showToast('PocketBase 連線失敗，請檢查網址或 CORS');
+        return false;
+      }
+    }
+
     // 本地持久化資料讀取
     async function loadSavedPreferences() {
       try {
@@ -528,7 +781,15 @@
           const savedLastUrl = await window.sayoStorage.getItem('reader_last_url');
           const savedHistory = await window.sayoStorage.getItem('reader_url_history');
           const savedAutoRestore = await window.sayoStorage.getItem('reader_auto_restore');
+          const savedPbUrl = await window.sayoStorage.getItem('reader_pb_url');
+          const savedPbSync = await window.sayoStorage.getItem('reader_pb_sync');
+          const savedPbToken = await window.sayoStorage.getItem('reader_pb_token');
+          const savedPbEmail = await window.sayoStorage.getItem('reader_pb_email');
 
+          if (savedPbUrl !== null) pbUrlInput.value = savedPbUrl;
+          if (savedPbSync !== null) pbSyncToggle.checked = savedPbSync !== 'false';
+          if (savedPbToken) state.pbToken = savedPbToken;
+          if (savedPbEmail) pbEmailInput.value = savedPbEmail;
           if (savedTheme) applyTheme(savedTheme);
           if (savedFontSize) {
             state.fontSize = parseInt(savedFontSize, 10);
@@ -557,7 +818,7 @@
             }
           }
 
-          if (savedHistory) {
+          if (savedHistory && !savedPbToken) {
             try {
               state.urlHistory = JSON.parse(savedHistory);
               renderUrlHistory();
@@ -565,6 +826,7 @@
               state.urlHistory = [];
             }
           }
+          if (state.pbToken && pbUrlInput.value.trim()) await restorePocketBaseSession();
         }
       } catch (err) {
         console.warn('Storage read fallback', err);
@@ -583,7 +845,8 @@
       state.urlHistory.unshift({
         url,
         title: cleanTitle,
-        time: timeStr
+        time: timeStr,
+        updatedAt: now.toISOString()
       });
 
       if (state.urlHistory.length > 50) {
@@ -594,11 +857,12 @@
 
       if (window.sayoStorage) {
         try {
-          await window.sayoStorage.setItem('reader_url_history', JSON.stringify(state.urlHistory));
+          await saveCurrentHistory();
         } catch (e) {
           console.warn('Failed to save history', e);
         }
       }
+      if (state.pbToken && state.pbUser) void syncPocketBaseHistory();
     }
 
     // 渲染歷史清單
@@ -781,6 +1045,12 @@
 
         const markdownText = await response.text();
         renderCleanMarkdown(markdownText, targetUrl);
+        void recordToPocketBase({
+          url: targetUrl,
+          title: state.currentTitle,
+          input_type: 'url',
+          content_snippet: articleContent.innerText.slice(0, 200)
+        });
 
         // 推算與分析章節連結
         const inferred = inferNextAndPrevUrl(targetUrl);
@@ -809,6 +1079,12 @@
 
       } catch (error) {
         console.error('Fetch error:', error);
+        void recordToPocketBase({
+          url: targetUrl,
+          title: '網頁載入失敗',
+          input_type: 'url',
+          content_snippet: '無法擷取網頁內容'
+        });
         articleContent.innerHTML = `
           <div class="p-5 rounded-2xl bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900 text-rose-800 dark:text-rose-200 space-y-3">
             <h3 class="font-bold flex items-center gap-2 text-base">
@@ -1217,6 +1493,24 @@
       // 防誤觸切換
       touchSafeBtn.addEventListener('click', () => toggleTouchSafe(!state.isTouchSafe));
       mobileQuickSafeBtn.addEventListener('click', () => toggleTouchSafe(!state.isTouchSafe));
+
+      // PocketBase 設定儲存
+      pbUrlInput.addEventListener('change', () => {
+        if (window.sayoStorage) {
+          window.sayoStorage.setItem('reader_pb_url', pbUrlInput.value.trim()).catch(error => console.warn('PocketBase 網址偏好儲存失敗:', error));
+        }
+      });
+      pbSyncToggle.addEventListener('change', () => {
+        if (window.sayoStorage) {
+          window.sayoStorage.setItem('reader_pb_sync', pbSyncToggle.checked.toString()).catch(error => console.warn('PocketBase 同步偏好儲存失敗:', error));
+        }
+      });
+      pbLoginBtn.addEventListener('click', () => authenticatePocketBase('login'));
+      pbRegisterBtn.addEventListener('click', () => authenticatePocketBase('register'));
+      pbLogoutBtn.addEventListener('click', logoutPocketBase);
+      pbPasswordInput.addEventListener('keydown', event => {
+        if (event.key === 'Enter') authenticatePocketBase('login');
+      });
 
       // 彈窗與抽屜控制
       openInputBtn.addEventListener('click', () => inputModal.classList.remove('hidden'));
