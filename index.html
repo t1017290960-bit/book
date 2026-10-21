@@ -198,7 +198,7 @@
           <i class="fa-solid fa-chevron-down text-[10px] transition-transform group-open:rotate-180"></i>
         </summary>
         <div class="space-y-2 px-3 pb-3">
-          <input id="pbUrlInput" type="url" value="https://radiation-driven-advisory-stocks.trycloudflare.com" placeholder="https://radiation-driven-advisory-stocks.trycloudflare.com" class="w-full px-3 py-2 text-xs rounded-lg border border-stone-300 dark:border-stone-700 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-100">
+          <input id="pbUrlInput" type="url" value="https://equally-states-transmission-gate.trycloudflare.com" placeholder="https://equally-states-transmission-gate.trycloudflare.com" class="w-full px-3 py-2 text-xs rounded-lg border border-stone-300 dark:border-stone-700 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-100">
           <div class="space-y-2 border-t border-amber-500/20 pt-2">
             <div class="flex items-center justify-between gap-2">
               <span class="text-xs font-semibold text-stone-700 dark:text-stone-200">PocketBase 帳戶同步</span>
@@ -816,10 +816,11 @@
 
           const oldPbUrls = [
             'https://kansas-knives-included-steel.trycloudflare.com',
-            'http://100.66.16.70:8091'
+            'http://100.66.16.70:8091',
+            'https://radiation-driven-advisory-stocks.trycloudflare.com'
           ];
           if (savedPbUrl === null || oldPbUrls.includes(savedPbUrl)) {
-            pbUrlInput.value = 'https://radiation-driven-advisory-stocks.trycloudflare.com';
+            pbUrlInput.value = 'https://equally-states-transmission-gate.trycloudflare.com';
             window.sayoStorage.setItem('reader_pb_url', pbUrlInput.value).catch(error => console.warn('PocketBase 網址更新失敗:', error));
           } else {
             pbUrlInput.value = savedPbUrl;
